@@ -88,7 +88,7 @@ export class FlowReaderView extends ItemView {
   }
 
   getDisplayText(): string {
-    return this.book?.title ?? "Flow Reader";
+    return this.book?.title ?? "Leitura DS";
   }
 
   getIcon(): string {
@@ -144,7 +144,7 @@ export class FlowReaderView extends ItemView {
     const fastButton = primary.createEl("button", { cls: "flow-reader__fast-toggle flow-reader__primary-action", attr: { "aria-label": "Leitura rápida", title: "Leitura rápida" } });
     setIcon(fastButton, "gauge");
     fastButton.addEventListener("click", () => this.openFastPanel());
-    this.titleElement = primary.createDiv({ cls: "flow-reader__title", text: "Flow Reader" });
+    this.titleElement = primary.createDiv({ cls: "flow-reader__title", text: "Leitura DS" });
     const moreButton = primary.createEl("button", { text: "⋯", cls: "flow-reader__more", attr: { "aria-label": "Mais ferramentas", "aria-expanded": "false" } });
     const tools = toolbar.createDiv({ cls: "flow-reader__toolbar-tools" });
     this.chapterSelect = tools.createEl("select", { attr: { "aria-label": "Capítulo" } });
@@ -489,7 +489,7 @@ export class FlowReaderView extends ItemView {
   private async loadBook(path: string): Promise<void> {
     const file = this.app.vault.getFileByPath(path);
     if (!file || file.extension.toLowerCase() !== "epub") {
-      new Notice("Flow Reader: arquivo EPUB não encontrado.");
+      new Notice("Leitura DS: arquivo EPUB não encontrado.");
       return;
     }
     this.readerHost.empty();
@@ -545,7 +545,7 @@ export class FlowReaderView extends ItemView {
         this.returnReadingBar.addClass("is-hidden");
       }
     } catch (error) {
-      console.error("Flow Reader failed to open EPUB", error);
+      console.error("Leitura DS failed to open EPUB", error);
       this.readerHost.empty();
       this.readerHost.createDiv({ cls: "flow-reader__error", text: error instanceof Error ? error.message : "Não foi possível abrir o EPUB." });
     }

@@ -38,7 +38,7 @@ export class FlowComicView extends ItemView {
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: FlowReaderPlugin) { super(leaf); }
   getViewType(): string { return FLOW_COMIC_VIEW; }
-  getDisplayText(): string { return this.comic?.title ?? "Flow Reader"; }
+  getDisplayText(): string { return this.comic?.title ?? "Leitura DS"; }
   getIcon(): string { return "images"; }
 
   async onOpen(): Promise<void> {
@@ -137,7 +137,7 @@ export class FlowComicView extends ItemView {
   private async loadComic(path: string): Promise<void> {
     const file = this.app.vault.getFileByPath(path);
     const extension = file?.extension.toLowerCase();
-    if (!file || !["cbz", "cbr"].includes(extension ?? "")) { new Notice("Flow Reader: arquivo de quadrinho não encontrado."); return; }
+    if (!file || !["cbz", "cbr"].includes(extension ?? "")) { new Notice("Leitura DS: arquivo de quadrinho não encontrado."); return; }
     try {
       this.releaseComic();
       const binary = await this.app.vault.readBinary(file);
@@ -153,7 +153,7 @@ export class FlowComicView extends ItemView {
       const requested = this.requestedPage; this.requestedPage = null;
       await this.showPage(requested ?? saved?.chapterIndex ?? 0, false);
     } catch (error) {
-      console.error("Flow Reader could not open CBZ", error);
+      console.error("Leitura DS could not open CBZ", error);
       this.image.removeAttribute("src");
       const host = this.image.parentElement;
       host?.querySelector(".flow-comic__error")?.remove();

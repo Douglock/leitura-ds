@@ -9,7 +9,7 @@ import type { FlowReaderSettings } from "./types";
 import { FlowReaderSettingTab } from "./settings-tab";
 
 const DEFAULT_SETTINGS: FlowReaderSettings = {
-  baseFolder: "99 - SISTEMAS/Flow Reader", libraryFolder: "", exportFolder: "99 - SISTEMAS/Flow Reader/Destaques",
+  baseFolder: "99 - SISTEMAS/Leitura DS", libraryFolder: "", exportFolder: "99 - SISTEMAS/Leitura DS/Destaques",
   defaultTheme: "default", defaultFontSize: 18, defaultFocusColor: "#ff4d55",
   fastWordsPerMinute: 300, fastFontSize: 56, focusWordsPerMinute: 240, automaticBackups: true, swipeNavigation: true, dailyGoalMinutes: 20, voiceRate: 1, defaultSocialMode: "normal"
 };
@@ -32,7 +32,7 @@ export default class FlowReaderPlugin extends Plugin {
     this.registerView(FLOW_COMIC_VIEW, (leaf) => new FlowComicView(leaf, this));
     this.registerExtensions(["epub"], FLOW_READER_VIEW);
     this.registerExtensions(["cbz", "cbr"], FLOW_COMIC_VIEW);
-    this.addRibbonIcon("book-open", "Abrir Flow Reader", () => void this.openFirstBook());
+    this.addRibbonIcon("book-open", "Abrir Leitura DS", () => void this.openFirstBook());
     this.addRibbonIcon("library", "Minha biblioteca", () => void this.openLibrary());
     this.addCommand({
       id: "open-flow-reader",
@@ -104,12 +104,18 @@ export default class FlowReaderPlugin extends Plugin {
   }
 
   private getSharedStatePath(): string {
+    const folder = this.flowSettings.baseFolder.trim() || "Leitura DS";
+    return normalizePath(`${folder}/Leitura DS — Estado.json`);
+  }
+
+  /** Reads the previous filename once so an update never loses a synced reading point. */
+  private getLegacySharedStatePath(): string {
     const folder = this.flowSettings.baseFolder.trim() || "Flow Reader";
     return normalizePath(`${folder}/Flow Reader — Estado.json`);
   }
 
   private getSharedBackupFolder(): string {
-    const folder = this.flowSettings.baseFolder.trim() || "Flow Reader";
+    const folder = this.flowSettings.baseFolder.trim() || "Leitura DS";
     return normalizePath(`${folder}/Backups`);
   }
 
@@ -119,12 +125,13 @@ export default class FlowReaderPlugin extends Plugin {
     const folder = this.getSharedBackupFolder();
     await this.ensureFolder(folder);
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const path = normalizePath(`${folder}/Flow Reader — Estado — ${stamp}.json`);
+    const path = normalizePath(`${folder}/Leitura DS — Estado — ${stamp}.json`);
     return this.app.vault.create(path, await this.app.vault.read(source));
   }
 
   async openSharedStateFile(): Promise<void> {
-    const file = this.app.vault.getAbstractFileByPath(this.getSharedStatePath());
+    const file = this.app.vault.getAbstractFileByPath(this.getSharedStatePath())
+      ?? this.app.vault.getAbstractFileByPath(this.getLegacySharedStatePath());
     if (!(file instanceof TFile)) { new Notice("Ainda não há um estado de leitura salvo no Vault."); return; }
     await this.openMarkdownFile(file);
   }
@@ -134,7 +141,7 @@ export default class FlowReaderPlugin extends Plugin {
     const folder = this.getSharedBackupFolder();
     await this.ensureFolder(folder);
     const date = new Date().toISOString().slice(0, 10);
-    const path = normalizePath(`${folder}/Flow Reader — Estado — ${date}.json`);
+    const path = normalizePath(`${folder}/Leitura DS — Estado — ${date}.json`);
     if (!this.app.vault.getAbstractFileByPath(path)) await this.app.vault.create(path, await this.app.vault.read(source));
   }
 
@@ -193,7 +200,7 @@ export default class FlowReaderPlugin extends Plugin {
         annotationTombstones: parsed.annotationTombstones && typeof parsed.annotationTombstones === "object" ? parsed.annotationTombstones : {}
       };
     } catch {
-      new Notice("Flow Reader: não foi possível ler o estado sincronizado.");
+      new Notice("Leitura DS: não foi possível ler o estado sincronizado.");
       return undefined;
     }
   }
@@ -209,7 +216,7 @@ export default class FlowReaderPlugin extends Plugin {
   }
 
   private async saveSharedReadingState(): Promise<void> {
-    const folder = normalizePath(this.flowSettings.baseFolder.trim() || "Flow Reader");
+    const folder = normalizePath(this.flowSettings.baseFolder.trim() || "Leitura DS");
     await this.ensureFolder(folder);
     const path = this.getSharedStatePath();
     const existing = this.app.vault.getAbstractFileByPath(path);
@@ -365,7 +372,7 @@ export default class FlowReaderPlugin extends Plugin {
       annotation.quote.split(/\r?\n/).forEach((part) => lines.push(`> ${part}`));
       if (annotation.comment) lines.push(">", `> **Comentário:** ${annotation.comment.replace(/\n/g, " ")}`);
       if (annotation.tags?.length) lines.push(">", `> **Etiquetas:** ${annotation.tags.map((tag) => `#${tag.replace(/\s+/g, "-")}`).join(" ")}`);
-      lines.push(">", `> [Abrir no Flow Reader](${link})`, "");
+      lines.push(">", `> [Abrir no Leitura DS](${link})`, "");
     });
     const content = lines.join("\n");
     const existing = this.app.vault.getAbstractFileByPath(path);

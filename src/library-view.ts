@@ -81,7 +81,7 @@ export class FlowLibraryView extends ItemView {
       await this.plugin.registerBook(book);
       return book;
     } catch (error) {
-      console.error("Flow Reader could not add book to library", file.path, error);
+      console.error("Leitura DS could not add book to library", file.path, error);
       const extension = file.extension.toLowerCase();
       return {
         id: `unavailable-${file.path}`, path: file.path, title: file.basename, author: extension === "cbr" || extension === "cbz" ? "Quadrinho" : "Livro",

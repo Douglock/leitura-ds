@@ -1,9 +1,9 @@
 {
   "id": "flow-reader",
-  "name": "Flow Reader",
-  "version": "0.31.1",
+  "name": "Leitura DS",
+  "version": "0.32.0",
   "minAppVersion": "1.8.7",
-  "description": "Local-first EPUB reader with highlights, notes and fast reading.",
+  "description": "Leitor local-first de EPUBs e quadrinhos, com destaques, notas e leitura rápida.",
   "author": "Douglas Santana",
   "isDesktopOnly": false
 }

@@ -19,14 +19,14 @@ export class FlowReaderSettingTab extends PluginSettingTab {
     if (settings.baseFolder && !folderOptions[settings.baseFolder]) folderOptions[settings.baseFolder] = settings.baseFolder;
     if (settings.exportFolder && !folderOptions[settings.exportFolder]) folderOptions[settings.exportFolder] = settings.exportFolder;
 
-    containerEl.createEl("h2", { text: "Flow Reader" });
+    containerEl.createEl("h2", { text: "Leitura DS" });
     containerEl.createEl("p", { text: "Organize a biblioteca e escolha os padrões para novas leituras." });
     containerEl.createEl("h3", { text: "Biblioteca e notas" });
-    new Setting(containerEl).setName("Pasta principal do Flow Reader").setDesc("Local padrão da pasta do sistema do Flow Reader, incluindo arquivos e notas gerados pelo plugin.")
+    new Setting(containerEl).setName("Pasta principal do Leitura DS").setDesc("Local padrão da pasta do sistema do Leitura DS, incluindo arquivos e notas gerados pelo plugin.")
       .addDropdown((drop) => drop.addOptions(folderOptions).setValue(settings.baseFolder).onChange(async (value) => { settings.baseFolder = value; await this.plugin.saveSettings(); }));
     new Setting(containerEl).setName("Pasta da biblioteca").setDesc("EPUBs, CBZs e CBRs desta pasta e de suas subpastas aparecerão em Minha biblioteca.")
       .addDropdown((drop) => drop.addOptions(folderOptions).setValue(settings.libraryFolder).onChange(async (value) => { settings.libraryFolder = value; await this.plugin.saveSettings(); }));
-    new Setting(containerEl).setName("Pasta dos destaques").setDesc("Onde o Flow Reader salva as notas Markdown de cada livro.")
+    new Setting(containerEl).setName("Pasta dos destaques").setDesc("Onde o Leitura DS salva as notas Markdown de cada livro.")
       .addDropdown((drop) => drop.addOptions(folderOptions).setValue(settings.exportFolder).onChange(async (value) => { settings.exportFolder = value; await this.plugin.saveSettings(); }));
     new Setting(containerEl).setName("Atualizar lista de pastas").setDesc("Use após criar, mover ou renomear pastas no Vault.")
       .addButton((button) => button.setButtonText("Atualizar").onClick(() => this.display()));

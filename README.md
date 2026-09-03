@@ -1,4 +1,4 @@
-# Flow Reader
+# Leitura DS
 
 <div align="center">
 
@@ -16,9 +16,9 @@ Leitura concentrada, destaques sincronizados no Vault e modos feitos para cada m
 
 ---
 
-## Por que o Flow Reader?
+## Por que o Leitura DS?
 
-O Flow Reader mantém livros, progresso, destaques e comentários no seu próprio Vault. Assim, sua leitura acompanha você entre macOS, iPhone e Android por meio da sincronização que você já usa no Obsidian.
+O Leitura DS mantém livros, progresso, destaques e comentários no seu próprio Vault. Assim, sua leitura acompanha você entre macOS, iPhone e Android por meio da sincronização que você já usa no Obsidian.
 
 ## Funcionalidades
 
@@ -62,13 +62,13 @@ Enquanto o plugin não estiver listado na comunidade do Obsidian, use a instala�
 <seu-vault>/.obsidian/plugins/flow-reader/
 ```
 
-4. No Obsidian, abra **Configurações → Plugins não oficiais**, habilite o Flow Reader e escolha as pastas em **Flow Reader**.
+4. No Obsidian, abra **Configurações → Plugins não oficiais**, habilite o Leitura DS e escolha as pastas em **Leitura DS**.
 
 Abra um EPUB, CBZ ou CBR no Vault, ou use os comandos **Minha biblioteca**, **Meus destaques** e **Continuar última leitura**.
 
 ## Privacidade
 
-O Flow Reader é local-first: não envia seus livros, destaques, comentários ou posição de leitura para um serviço externo. O estado é salvo em arquivos do próprio Vault para que o seu método de sincronização possa levá-lo aos seus dispositivos.
+O Leitura DS é local-first: não envia seus livros, destaques, comentários ou posição de leitura para um serviço externo. O estado é salvo em arquivos do próprio Vault para que o seu método de sincronização possa levá-lo aos seus dispositivos.
 
 ## Desenvolvimento
 
