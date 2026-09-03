@@ -619,7 +619,9 @@ export class FlowReaderView extends ItemView {
   private renderSocialMode(): void {
     const article = this.readerHost.querySelector<HTMLElement>(".flow-reader__chapter");
     if (!article || this.socialMode === "normal") return;
-    this.socialChunks = this.createSocialChunks(article);
+    // Cards that occupy an entire screen need deliberately short passages. The
+    // thread can keep longer passages because it scrolls as a normal feed.
+    this.socialChunks = this.createSocialChunks(article, this.socialMode === "thread" ? 360 : 170);
     if (!this.socialChunks.length) return;
     const index = this.socialChunks.findIndex((chunk, current) => chunk.startWord <= this.fastWordIndex && (!this.socialChunks[current + 1] || this.socialChunks[current + 1].startWord > this.fastWordIndex));
     this.socialIndex = Math.max(0, index);
@@ -646,11 +648,14 @@ export class FlowReaderView extends ItemView {
         });
         body.scrollTop = Math.max(0, (body.querySelector(".is-current") as HTMLElement | null)?.offsetTop - 80 || 0);
       } else {
-        const card = body.createDiv({ cls: "flow-reader__social-card", text: chunk.text });
-        const previous = body.createEl("button", { cls: "flow-reader__social-side flow-reader__social-side--previous", text: "‹", attr: { "aria-label": "Trecho anterior" } });
-        const next = body.createEl("button", { cls: "flow-reader__social-side flow-reader__social-side--next", text: "›", attr: { "aria-label": "Próximo trecho" } });
+        const card = body.createDiv({ cls: "flow-reader__social-card", text: chunk.text, attr: { "aria-live": "polite" } });
+        const navigation = body.createDiv({ cls: "flow-reader__social-navigation" });
+        const previous = navigation.createEl("button", { text: "‹", attr: { "aria-label": "Trecho anterior" } });
+        const counter = navigation.createSpan({ text: `${this.socialIndex + 1} de ${this.socialChunks.length}` });
+        const next = navigation.createEl("button", { text: "›", attr: { "aria-label": "Próximo trecho" } });
         previous.addEventListener("click", () => move(-1)); next.addEventListener("click", () => move(1));
-        if (this.socialMode === "carousel") body.createDiv({ cls: "flow-reader__social-hint", text: "Arraste para o lado para continuar" });
+        if (this.socialMode === "carousel") counter.setAttribute("title", "Arraste para o lado para continuar");
+        if (this.socialMode === "stories") counter.setAttribute("title", "Toque à direita para avançar ou à esquerda para voltar");
         card.tabIndex = 0;
         card.addEventListener("keydown", (event) => { if (event.key === "ArrowLeft") move(-1); if (event.key === "ArrowRight" || event.key === " ") move(1); });
       }
@@ -664,7 +669,7 @@ export class FlowReaderView extends ItemView {
     renderStep();
   }
 
-  private createSocialChunks(article: HTMLElement): Array<{ text: string; startWord: number }> {
+  private createSocialChunks(article: HTMLElement, maximumCharacters: number): Array<{ text: string; startWord: number }> {
     const paragraphs = Array.from(article.querySelectorAll<HTMLElement>("p, li, blockquote, h1, h2, h3"))
       .map((element) => element.innerText.replace(/\s+/g, " ").trim()).filter(Boolean);
     const source = paragraphs.length ? paragraphs : [this.getReadableArticleText(article).replace(/\s+/g, " ").trim()];
@@ -675,7 +680,7 @@ export class FlowReaderView extends ItemView {
       let part: string[] = [];
       let partStart = wordsBefore;
       words.forEach((word) => {
-        if (part.length && `${part.join(" ")} ${word}`.length > 360) { chunks.push({ text: part.join(" "), startWord: partStart }); partStart += part.length; part = []; }
+        if (part.length && `${part.join(" ")} ${word}`.length > maximumCharacters) { chunks.push({ text: part.join(" "), startWord: partStart }); partStart += part.length; part = []; }
         part.push(word);
       });
       if (part.length) chunks.push({ text: part.join(" "), startWord: partStart });
