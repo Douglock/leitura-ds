@@ -1,50 +1,54 @@
 import { normalizePath, Notice, Plugin, TFile, TFolder } from "obsidian";
-import { FLOW_READER_VIEW, FlowReaderView } from "./reader-view";
-import { FLOW_LIBRARY_VIEW, FlowLibraryView } from "./library-view";
-import { FLOW_HIGHLIGHTS_VIEW, FlowHighlightsView } from "./highlights-view";
-import { FLOW_STATS_VIEW, FlowStatsView } from "./stats-view";
-import { FLOW_COMIC_VIEW, FlowComicView } from "./comic-view";
-import type { BookAnnotation, BookMarker, BookRecord, ComicBook, FlowReaderData, FlowReaderSharedState, ParsedBook, ReadingPosition, ReadingStats } from "./types";
-import type { FlowReaderSettings } from "./types";
-import { FlowReaderSettingTab } from "./settings-tab";
+import { LEITURA_DS_VIEW, LeituraDSView } from "./reader-view";
+import { LEITURA_DS_LIBRARY_VIEW, LeituraDSLibraryView } from "./library-view";
+import { LEITURA_DS_HIGHLIGHTS_VIEW, LeituraDSHighlightsView } from "./highlights-view";
+import { LEITURA_DS_STATS_VIEW, LeituraDSStatsView } from "./stats-view";
+import { LEITURA_DS_COMIC_VIEW, LeituraDSComicView } from "./comic-view";
+import type { BookAnnotation, BookMarker, BookRecord, ComicBook, LeituraDSData, LeituraDSSharedState, ParsedBook, ReadingPosition, ReadingStats } from "./types";
+import type { LeituraDSSettings } from "./types";
+import { LeituraDSSettingTab } from "./settings-tab";
 
-const DEFAULT_SETTINGS: FlowReaderSettings = {
+const DEFAULT_SETTINGS: LeituraDSSettings = {
   baseFolder: "99 - SISTEMAS/Leitura DS", libraryFolder: "", exportFolder: "99 - SISTEMAS/Leitura DS/Destaques",
   defaultTheme: "default", defaultFontSize: 18, defaultFocusColor: "#ff4d55",
   fastWordsPerMinute: 300, fastFontSize: 56, focusWordsPerMinute: 240, automaticBackups: true, swipeNavigation: true, dailyGoalMinutes: 20, voiceRate: 1, defaultSocialMode: "normal"
 };
-const DEFAULT_DATA: FlowReaderData = { positions: {}, referencePoints: {}, annotations: {}, books: {}, markers: {}, annotationTombstones: {}, readingStats: { days: {} }, settings: DEFAULT_SETTINGS };
+const DEFAULT_DATA: LeituraDSData = { positions: {}, referencePoints: {}, annotations: {}, books: {}, markers: {}, annotationTombstones: {}, readingStats: { days: {} }, settings: DEFAULT_SETTINGS };
 
-export default class FlowReaderPlugin extends Plugin {
-  private data: FlowReaderData = DEFAULT_DATA;
+export default class LeituraDSPlugin extends Plugin {
+  private data: LeituraDSData = DEFAULT_DATA;
   private writingSharedState = false;
   private lastSharedSaveAt = "";
 
   async onload(): Promise<void> {
-    const loaded = (await this.loadData()) as Partial<FlowReaderData> | null;
-    this.data = { ...DEFAULT_DATA, ...loaded, settings: { ...DEFAULT_SETTINGS, ...(loaded?.settings ?? {}) } };
+    const loaded = (await this.loadData()) as Partial<LeituraDSData> | null;
+    // Import the previous Flow Reader data once so positions, annotations and
+    // prior data file once so positions, annotations and settings survive it.
+    const migrated = loaded ?? await this.readLegacyPluginData();
+    this.data = { ...DEFAULT_DATA, ...migrated, settings: { ...DEFAULT_SETTINGS, ...(migrated?.settings ?? {}) } };
+    if (!loaded && migrated) await this.saveData(this.data);
     await this.loadSharedReadingState();
-    this.addSettingTab(new FlowReaderSettingTab(this.app, this));
-    this.registerView(FLOW_READER_VIEW, (leaf) => new FlowReaderView(leaf, this));
-    this.registerView(FLOW_LIBRARY_VIEW, (leaf) => new FlowLibraryView(leaf, this));
-    this.registerView(FLOW_HIGHLIGHTS_VIEW, (leaf) => new FlowHighlightsView(leaf, this));
-    this.registerView(FLOW_STATS_VIEW, (leaf) => new FlowStatsView(leaf, this));
-    this.registerView(FLOW_COMIC_VIEW, (leaf) => new FlowComicView(leaf, this));
-    this.registerExtensions(["epub"], FLOW_READER_VIEW);
-    this.registerExtensions(["cbz", "cbr"], FLOW_COMIC_VIEW);
+    this.addSettingTab(new LeituraDSSettingTab(this.app, this));
+    this.registerView(LEITURA_DS_VIEW, (leaf) => new LeituraDSView(leaf, this));
+    this.registerView(LEITURA_DS_LIBRARY_VIEW, (leaf) => new LeituraDSLibraryView(leaf, this));
+    this.registerView(LEITURA_DS_HIGHLIGHTS_VIEW, (leaf) => new LeituraDSHighlightsView(leaf, this));
+    this.registerView(LEITURA_DS_STATS_VIEW, (leaf) => new LeituraDSStatsView(leaf, this));
+    this.registerView(LEITURA_DS_COMIC_VIEW, (leaf) => new LeituraDSComicView(leaf, this));
+    this.registerExtensions(["epub"], LEITURA_DS_VIEW);
+    this.registerExtensions(["cbz", "cbr"], LEITURA_DS_COMIC_VIEW);
     this.addRibbonIcon("book-open", "Abrir Leitura DS", () => void this.openFirstBook());
     this.addRibbonIcon("library", "Minha biblioteca", () => void this.openLibrary());
     this.addCommand({
-      id: "open-flow-reader",
+      id: "open-leitura-ds",
       name: "Abrir leitor EPUB",
       callback: () => void this.openFirstBook()
     });
-    this.addCommand({ id: "open-flow-library", name: "Abrir minha biblioteca", callback: () => void this.openLibrary() });
-    this.addCommand({ id: "open-flow-highlights", name: "Abrir meus destaques", callback: () => void this.openHighlights() });
-    this.addCommand({ id: "open-flow-stats", name: "Abrir estatísticas de leitura", callback: () => void this.openStats() });
-    this.addCommand({ id: "continue-flow-reading", name: "Continuar última leitura", callback: () => void this.continueLastReading() });
-    this.addCommand({ id: "export-flow-highlights", name: "Exportar destaques para Markdown", callback: () => void this.exportAllHighlights(true) });
-    this.registerObsidianProtocolHandler("flow-reader", (params) => {
+    this.addCommand({ id: "open-leitura-ds-library", name: "Abrir minha biblioteca", callback: () => void this.openLibrary() });
+    this.addCommand({ id: "open-leitura-ds-highlights", name: "Abrir meus destaques", callback: () => void this.openHighlights() });
+    this.addCommand({ id: "open-leitura-ds-stats", name: "Abrir estatísticas de leitura", callback: () => void this.openStats() });
+    this.addCommand({ id: "continue-leitura-ds-reading", name: "Continuar última leitura", callback: () => void this.continueLastReading() });
+    this.addCommand({ id: "export-leitura-ds-highlights", name: "Exportar destaques para Markdown", callback: () => void this.exportAllHighlights(true) });
+    this.registerObsidianProtocolHandler("leitura-ds", (params) => {
       const chapter = Number(params.chapter ?? "0");
       void this.openBookById(params.book ?? "", Number.isFinite(chapter) ? chapter : 0, params.annotation);
     });
@@ -55,7 +59,7 @@ export default class FlowReaderPlugin extends Plugin {
   }
 
   onunload(): void {
-    this.app.workspace.detachLeavesOfType(FLOW_READER_VIEW);
+    this.app.workspace.detachLeavesOfType(LEITURA_DS_VIEW);
   }
 
   getPosition(bookId: string): ReadingPosition | undefined {
@@ -83,7 +87,7 @@ export default class FlowReaderPlugin extends Plugin {
     await this.saveData(this.data);
   }
 
-  get flowSettings(): FlowReaderSettings { this.data.settings ??= { ...DEFAULT_SETTINGS }; return this.data.settings; }
+  get leituraSettings(): LeituraDSSettings { this.data.settings ??= { ...DEFAULT_SETTINGS }; return this.data.settings; }
   get comicRuntimeBaseUrl(): string { return this.app.vault.adapter.getResourcePath(`${this.manifest.dir ?? `.obsidian/plugins/${this.manifest.id}`}/assets/`); }
   get sharedSaveTime(): string { return this.lastSharedSaveAt; }
   get syncDiagnostics(): { statePath: string; lastSavedAt: string; books: number; positions: number; highlights: number; backupFolder: string } {
@@ -92,6 +96,17 @@ export default class FlowReaderPlugin extends Plugin {
       positions: Object.keys(this.data.positions).length, highlights: Object.values(this.data.annotations ?? {}).reduce((total, items) => total + items.length, 0),
       backupFolder: this.getSharedBackupFolder()
     };
+  }
+
+  private async readLegacyPluginData(): Promise<Partial<LeituraDSData> | null> {
+    try {
+      const legacyPath = ".obsidian/plugins/flow-reader/data.json";
+      if (!(await this.app.vault.adapter.exists(legacyPath))) return null;
+      return JSON.parse(await this.app.vault.adapter.read(legacyPath)) as Partial<LeituraDSData>;
+    } catch (error) {
+      console.warn("Leitura DS could not import the previous plugin data", error);
+      return null;
+    }
   }
   async saveSettings(): Promise<void> { await this.saveData(this.data); }
   async resetSettings(): Promise<void> { this.data.settings = { ...DEFAULT_SETTINGS }; await this.saveData(this.data); }
@@ -104,18 +119,18 @@ export default class FlowReaderPlugin extends Plugin {
   }
 
   private getSharedStatePath(): string {
-    const folder = this.flowSettings.baseFolder.trim() || "Leitura DS";
+    const folder = this.leituraSettings.baseFolder.trim() || "Leitura DS";
     return normalizePath(`${folder}/Leitura DS — Estado.json`);
   }
 
   /** Reads the previous filename once so an update never loses a synced reading point. */
   private getLegacySharedStatePath(): string {
-    const folder = this.flowSettings.baseFolder.trim() || "Flow Reader";
+    const folder = this.leituraSettings.baseFolder.trim() || "Flow Reader";
     return normalizePath(`${folder}/Flow Reader — Estado.json`);
   }
 
   private getSharedBackupFolder(): string {
-    const folder = this.flowSettings.baseFolder.trim() || "Leitura DS";
+    const folder = this.leituraSettings.baseFolder.trim() || "Leitura DS";
     return normalizePath(`${folder}/Backups`);
   }
 
@@ -137,7 +152,7 @@ export default class FlowReaderPlugin extends Plugin {
   }
 
   private async createDailyStateBackup(source: TFile): Promise<void> {
-    if (!this.flowSettings.automaticBackups) return;
+    if (!this.leituraSettings.automaticBackups) return;
     const folder = this.getSharedBackupFolder();
     await this.ensureFolder(folder);
     const date = new Date().toISOString().slice(0, 10);
@@ -187,11 +202,11 @@ export default class FlowReaderPlugin extends Plugin {
     Object.entries(remote).forEach(([id, book]) => { if (!this.data.books?.[id]) this.data.books![id] = book; });
   }
 
-  private async readSharedReadingState(): Promise<FlowReaderSharedState | undefined> {
+  private async readSharedReadingState(): Promise<LeituraDSSharedState | undefined> {
     const file = this.app.vault.getAbstractFileByPath(this.getSharedStatePath());
     if (!(file instanceof TFile)) return undefined;
     try {
-      const parsed = JSON.parse(await this.app.vault.read(file)) as Partial<FlowReaderSharedState>;
+      const parsed = JSON.parse(await this.app.vault.read(file)) as Partial<LeituraDSSharedState>;
       if (!parsed.positions || typeof parsed.positions !== "object") return undefined;
       return {
         version: 1, updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : "", positions: parsed.positions,
@@ -216,7 +231,7 @@ export default class FlowReaderPlugin extends Plugin {
   }
 
   private async saveSharedReadingState(): Promise<void> {
-    const folder = normalizePath(this.flowSettings.baseFolder.trim() || "Leitura DS");
+    const folder = normalizePath(this.leituraSettings.baseFolder.trim() || "Leitura DS");
     await this.ensureFolder(folder);
     const path = this.getSharedStatePath();
     const existing = this.app.vault.getAbstractFileByPath(path);
@@ -226,7 +241,7 @@ export default class FlowReaderPlugin extends Plugin {
       this.mergeBooks(remote.books);
       this.mergeAnnotations(remote.annotations, remote.annotationTombstones);
     }
-    const state: FlowReaderSharedState = {
+    const state: LeituraDSSharedState = {
       version: 1, updatedAt: new Date().toISOString(), positions: this.data.positions,
       annotations: this.data.annotations ?? {}, books: this.data.books ?? {}, annotationTombstones: this.data.annotationTombstones ?? {}
     };
@@ -344,7 +359,7 @@ export default class FlowReaderPlugin extends Plugin {
   private async exportBookHighlights(bookId: string): Promise<TFile | undefined> {
     const book = this.data.books?.[bookId];
     if (!book) return undefined;
-    const folder = normalizePath(this.flowSettings.exportFolder.trim() || DEFAULT_SETTINGS.exportFolder);
+    const folder = normalizePath(this.leituraSettings.exportFolder.trim() || DEFAULT_SETTINGS.exportFolder);
     await this.ensureFolder(folder);
     const safeTitle = this.safeFileName(book.title) || "Livro";
     const sameTitleBooks = Object.values(this.data.books ?? {}).filter((candidate) => candidate.title.trim().toLocaleLowerCase("pt-BR") === book.title.trim().toLocaleLowerCase("pt-BR"))
@@ -355,8 +370,8 @@ export default class FlowReaderPlugin extends Plugin {
     const annotations = [...this.getAnnotations(bookId)].sort((a, b) => a.chapterIndex - b.chapterIndex || a.startOffset - b.startOffset);
     const lines = [
       "---", `title: ${JSON.stringify(`${book.title} — Destaques`)}`, `book: ${JSON.stringify(book.title)}`,
-      `author: ${JSON.stringify(book.author)}`, `epub: ${JSON.stringify(book.path)}`, `flow_reader_id: ${bookId}`,
-      `updated: ${new Date().toISOString()}`, "tags:", "  - flow-reader", "  - destaque", "---", "",
+      `author: ${JSON.stringify(book.author)}`, `epub: ${JSON.stringify(book.path)}`, `leitura_ds_id: ${bookId}`,
+      `updated: ${new Date().toISOString()}`, "tags:", "  - leitura-ds", "  - destaque", "---", "",
       `# ${book.title}`, "", `**Autor:** ${book.author}`, `**Destaques:** ${annotations.length}`, ""
     ];
     if (!annotations.length) lines.push("> Nenhum destaque salvo neste livro.", "");
@@ -366,8 +381,8 @@ export default class FlowReaderPlugin extends Plugin {
         currentChapter = annotation.chapterIndex;
         lines.push(`## ${book.chapters?.[currentChapter] ?? `Capítulo ${currentChapter + 1}`}`, "");
       }
-      const link = `obsidian://flow-reader?book=${encodeURIComponent(bookId)}&chapter=${annotation.chapterIndex}&annotation=${encodeURIComponent(annotation.id)}`;
-      lines.push(`<!-- flow-reader:annotation=${annotation.id} -->`);
+      const link = `obsidian://leitura-ds?book=${encodeURIComponent(bookId)}&chapter=${annotation.chapterIndex}&annotation=${encodeURIComponent(annotation.id)}`;
+      lines.push(`<!-- leitura-ds:annotation=${annotation.id} -->`);
       lines.push(`> [!quote] Destaque · ${this.colorName(annotation.color)}`);
       annotation.quote.split(/\r?\n/).forEach((part) => lines.push(`> ${part}`));
       if (annotation.comment) lines.push(">", `> **Comentário:** ${annotation.comment.replace(/\n/g, " ")}`);
@@ -387,14 +402,14 @@ export default class FlowReaderPlugin extends Plugin {
   }
 
   async importHighlightsFromMarkdown(): Promise<void> {
-    const folder = normalizePath(this.flowSettings.exportFolder.trim() || DEFAULT_SETTINGS.exportFolder);
+    const folder = normalizePath(this.leituraSettings.exportFolder.trim() || DEFAULT_SETTINGS.exportFolder);
     const files = this.app.vault.getFiles().filter((file) => file.extension === "md" && (file.path === folder || file.path.startsWith(`${folder}/`)));
     const changedBooks = new Set<string>();
     for (const file of files) {
       const content = await this.app.vault.read(file);
-      const bookId = content.match(/^flow_reader_id:\s*(.+)$/m)?.[1]?.trim().replace(/^"|"$/g, "");
+      const bookId = (content.match(/^leitura_ds_id:\s*(.+)$/m)?.[1] ?? content.match(/^flow_reader_id:\s*(.+)$/m)?.[1])?.trim().replace(/^"|"$/g, "");
       if (!bookId || !this.data.annotations?.[bookId]) continue;
-      const blocks = [...content.matchAll(/<!--\s*flow-reader:annotation=([^\s]+)\s*-->([\s\S]*?)(?=<!--\s*flow-reader:annotation=|$)/g)];
+      const blocks = [...content.matchAll(/<!--\s*(?:leitura-ds|flow-reader):annotation=([^\s]+)\s*-->([\s\S]*?)(?=<!--\s*(?:leitura-ds|flow-reader):annotation=|$)/g)];
       blocks.forEach((block) => {
         const id = block[1];
         const source = block[2] ?? "";
@@ -443,7 +458,7 @@ export default class FlowReaderPlugin extends Plugin {
 
   private async openFirstBook(): Promise<void> {
     const active = this.app.workspace.getActiveFile();
-    const folder = this.flowSettings.libraryFolder.trim().replace(/\/+$/, "");
+    const folder = this.leituraSettings.libraryFolder.trim().replace(/\/+$/, "");
     const file = active && ["epub", "cbz", "cbr"].includes(active.extension.toLowerCase()) ? active : this.app.vault.getFiles().find((candidate) => ["epub", "cbz", "cbr"].includes(candidate.extension.toLowerCase()) && (!folder || candidate.path.startsWith(`${folder}/`)));
     if (!file) {
       new Notice("Adicione um arquivo EPUB, CBZ ou CBR ao Vault para começar.");
@@ -455,7 +470,7 @@ export default class FlowReaderPlugin extends Plugin {
   async openBook(file: TFile, chapterIndex?: number, annotationId?: string, legacyBookId?: string): Promise<void> {
     const leaf = this.app.workspace.getLeaf("tab");
     const isComic = ["cbz", "cbr"].includes(file.extension.toLowerCase());
-    await leaf.setViewState({ type: isComic ? FLOW_COMIC_VIEW : FLOW_READER_VIEW, active: true, state: isComic ? { file: file.path, pageIndex: chapterIndex, legacyBookId } : { file: file.path, chapterIndex, annotationId, legacyBookId } });
+    await leaf.setViewState({ type: isComic ? LEITURA_DS_COMIC_VIEW : LEITURA_DS_VIEW, active: true, state: isComic ? { file: file.path, pageIndex: chapterIndex, legacyBookId } : { file: file.path, chapterIndex, annotationId, legacyBookId } });
     await this.app.workspace.revealLeaf(leaf);
   }
 
@@ -485,19 +500,19 @@ export default class FlowReaderPlugin extends Plugin {
 
   async openLibrary(): Promise<void> {
     const leaf = this.app.workspace.getLeaf("tab");
-    await leaf.setViewState({ type: FLOW_LIBRARY_VIEW, active: true });
+    await leaf.setViewState({ type: LEITURA_DS_LIBRARY_VIEW, active: true });
     await this.app.workspace.revealLeaf(leaf);
   }
 
   async openHighlights(): Promise<void> {
     const leaf = this.app.workspace.getLeaf("tab");
-    await leaf.setViewState({ type: FLOW_HIGHLIGHTS_VIEW, active: true });
+    await leaf.setViewState({ type: LEITURA_DS_HIGHLIGHTS_VIEW, active: true });
     await this.app.workspace.revealLeaf(leaf);
   }
 
   async openStats(): Promise<void> {
     const leaf = this.app.workspace.getLeaf("tab");
-    await leaf.setViewState({ type: FLOW_STATS_VIEW, active: true });
+    await leaf.setViewState({ type: LEITURA_DS_STATS_VIEW, active: true });
     await this.app.workspace.revealLeaf(leaf);
   }
 }

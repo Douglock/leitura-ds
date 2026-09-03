@@ -1,12 +1,12 @@
 import { ItemView, Notice, WorkspaceLeaf } from "obsidian";
-import type FlowReaderPlugin from "./main";
+import type LeituraDSPlugin from "./main";
 import { AnnotationModal } from "./annotation-modal";
 
-export const FLOW_HIGHLIGHTS_VIEW = "flow-reader-highlights";
+export const LEITURA_DS_HIGHLIGHTS_VIEW = "leitura-ds-highlights";
 
-export class FlowHighlightsView extends ItemView {
-  constructor(leaf: WorkspaceLeaf, private readonly plugin: FlowReaderPlugin) { super(leaf); }
-  getViewType(): string { return FLOW_HIGHLIGHTS_VIEW; }
+export class LeituraDSHighlightsView extends ItemView {
+  constructor(leaf: WorkspaceLeaf, private readonly plugin: LeituraDSPlugin) { super(leaf); }
+  getViewType(): string { return LEITURA_DS_HIGHLIGHTS_VIEW; }
   getDisplayText(): string { return "Meus destaques"; }
   getIcon(): string { return "highlighter"; }
   async onOpen(): Promise<void> { this.renderHighlights(); }

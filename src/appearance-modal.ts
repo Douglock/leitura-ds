@@ -27,14 +27,14 @@ export class AppearanceModal extends Modal {
   onOpen(): void {
     this.titleEl.setText("Aparência da leitura");
     this.contentEl.createEl("h3", { text: "Tema" });
-    const themeGrid = this.contentEl.createDiv({ cls: "flow-reader__theme-grid" });
+    const themeGrid = this.contentEl.createDiv({ cls: "leitura-ds__theme-grid" });
     const themeButtons = new Map<ReaderTheme, HTMLButtonElement>();
     THEMES.forEach((theme) => {
-      const button = themeGrid.createEl("button", { cls: "flow-reader__theme-card", attr: { "aria-label": `Tema ${theme.name}` } });
+      const button = themeGrid.createEl("button", { cls: "leitura-ds__theme-card", attr: { "aria-label": `Tema ${theme.name}` } });
       button.style.setProperty("--theme-bg", theme.colors[0]);
       button.style.setProperty("--theme-text", theme.colors[1]);
       button.style.setProperty("--theme-accent", theme.colors[2]);
-      button.createDiv({ cls: "flow-reader__theme-preview", text: "Aa" });
+      button.createDiv({ cls: "leitura-ds__theme-preview", text: "Aa" });
       button.createSpan({ text: theme.name });
       themeButtons.set(theme.id, button);
       button.addEventListener("click", () => {
@@ -45,12 +45,12 @@ export class AppearanceModal extends Modal {
     themeButtons.get(this.settings.theme)?.addClass("is-selected");
 
     this.contentEl.createEl("h3", { text: "Cor da palavra em foco" });
-    const colorRow = this.contentEl.createDiv({ cls: "flow-reader__focus-colors" });
+    const colorRow = this.contentEl.createDiv({ cls: "leitura-ds__focus-colors" });
     const picker = colorRow.createEl("input", { type: "color", attr: { value: this.settings.focusColor, "aria-label": "Escolher qualquer cor" } });
     picker.value = this.settings.focusColor;
     const presetButtons: HTMLButtonElement[] = [];
     FOCUS_COLORS.forEach((color) => {
-      const button = colorRow.createEl("button", { cls: "flow-reader__focus-color", attr: { "aria-label": `Usar cor ${color}` } });
+      const button = colorRow.createEl("button", { cls: "leitura-ds__focus-color", attr: { "aria-label": `Usar cor ${color}` } });
       button.style.backgroundColor = color;
       presetButtons.push(button);
       button.addEventListener("click", () => {
@@ -66,7 +66,7 @@ export class AppearanceModal extends Modal {
       presetButtons.forEach((item) => item.removeClass("is-selected"));
     });
     this.contentEl.createEl("h3", { text: "Texto e página" });
-    const controls = this.contentEl.createDiv({ cls: "flow-reader__appearance-controls" });
+    const controls = this.contentEl.createDiv({ cls: "leitura-ds__appearance-controls" });
     this.addSelect<ReaderFont>(controls, "Fonte", this.settings.fontFamily, [
       ["book", "Fonte do livro"], ["serif", "Serifada"], ["sans", "Sem serifa"], ["system", "Sistema"]
     ], (value) => { this.settings.fontFamily = value; });
@@ -78,7 +78,7 @@ export class AppearanceModal extends Modal {
       ["left", "À esquerda"], ["justify", "Justificado"]
     ], (value) => { this.settings.textAlign = value; });
 
-    const actions = this.contentEl.createDiv({ cls: "flow-reader__appearance-actions" });
+    const actions = this.contentEl.createDiv({ cls: "leitura-ds__appearance-actions" });
     const reset = actions.createEl("button", { text: "Restaurar padrão" });
     reset.addEventListener("click", () => { this.onApply({ ...DEFAULT_APPEARANCE }); this.close(); });
     const apply = actions.createEl("button", { text: "Aplicar", cls: "mod-cta" });
@@ -88,7 +88,7 @@ export class AppearanceModal extends Modal {
   onClose(): void { this.contentEl.empty(); }
 
   private addRange(parent: HTMLElement, label: string, value: number, min: number, max: number, step: number, suffix: string, onChange: (value: number) => void): void {
-    const row = parent.createDiv({ cls: "flow-reader__appearance-row" });
+    const row = parent.createDiv({ cls: "leitura-ds__appearance-row" });
     row.createSpan({ text: label });
     const input = row.createEl("input", { type: "range", attr: { min: String(min), max: String(max), step: String(step), value: String(value), "aria-label": label } });
     const output = row.createEl("output", { text: `${value}${suffix}` });
@@ -96,7 +96,7 @@ export class AppearanceModal extends Modal {
   }
 
   private addSelect<T extends string>(parent: HTMLElement, label: string, value: T, options: Array<[T, string]>, onChange: (value: T) => void): void {
-    const row = parent.createDiv({ cls: "flow-reader__appearance-row" });
+    const row = parent.createDiv({ cls: "leitura-ds__appearance-row" });
     row.createSpan({ text: label });
     const select = row.createEl("select", { attr: { "aria-label": label } });
     options.forEach(([id, name]) => { const option = select.createEl("option", { text: name, value: id }); option.selected = id === value; });

@@ -1,16 +1,16 @@
 import { ItemView, Notice, TFile, WorkspaceLeaf } from "obsidian";
-import type FlowReaderPlugin from "./main";
+import type LeituraDSPlugin from "./main";
 import { parseEpubCatalogEntry } from "./epub-parser";
 import { parseCbrCatalogEntry, parseCbzCatalogEntry } from "./comic-parser";
 import type { ParsedBook } from "./types";
 
-export const FLOW_LIBRARY_VIEW = "flow-reader-library";
+export const LEITURA_DS_LIBRARY_VIEW = "leitura-ds-library";
 
-export class FlowLibraryView extends ItemView {
+export class LeituraDSLibraryView extends ItemView {
   private parsed: ParsedBook[] = [];
 
-  constructor(leaf: WorkspaceLeaf, private readonly plugin: FlowReaderPlugin) { super(leaf); }
-  getViewType(): string { return FLOW_LIBRARY_VIEW; }
+  constructor(leaf: WorkspaceLeaf, private readonly plugin: LeituraDSPlugin) { super(leaf); }
+  getViewType(): string { return LEITURA_DS_LIBRARY_VIEW; }
   getDisplayText(): string { return "Minha biblioteca"; }
   getIcon(): string { return "library"; }
 
@@ -35,7 +35,7 @@ export class FlowLibraryView extends ItemView {
     const sort = headerActions.createEl("select", { attr: { "aria-label": "Ordenar livros" } });
     [["recent", "Última leitura"], ["title", "Título"], ["progress", "Progresso"], ["author", "Autor"]].forEach(([value, text]) => sort.createEl("option", { value, text }));
     const shelf = root.createDiv({ cls: "flow-library__shelf" });
-    const folder = this.plugin.flowSettings.libraryFolder.trim().replace(/\/+$/, "");
+    const folder = this.plugin.leituraSettings.libraryFolder.trim().replace(/\/+$/, "");
     const files = this.app.vault.getFiles().filter((file) => ["epub", "cbz", "cbr"].includes(file.extension.toLowerCase()) && (!folder || file.path.startsWith(`${folder}/`)));
     if (!files.length) {
       shelf.createDiv({ cls: "flow-library__empty", text: "Adicione arquivos EPUB, CBZ ou CBR ao Vault para montar sua prateleira." });

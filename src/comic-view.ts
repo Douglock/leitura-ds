@@ -1,13 +1,13 @@
 import { ItemView, Notice, WorkspaceLeaf } from "obsidian";
-import type FlowReaderPlugin from "./main";
+import type LeituraDSPlugin from "./main";
 import { parseCbr, parseCbz } from "./comic-parser";
 import { MarkersModal } from "./markers-modal";
 import { AnnotationModal } from "./annotation-modal";
 import type { BookAnnotation, BookMarker, ComicBook, ReadingPosition } from "./types";
 
-export const FLOW_COMIC_VIEW = "flow-reader-comic";
+export const LEITURA_DS_COMIC_VIEW = "leitura-ds-comic";
 
-export class FlowComicView extends ItemView {
+export class LeituraDSComicView extends ItemView {
   private comic: ComicBook | null = null;
   private sourceFilePath = "";
   private requestedPage: number | null = null;
@@ -36,15 +36,15 @@ export class FlowComicView extends ItemView {
   private thumbnailsOpen = false;
   private thumbnailRender = 0;
 
-  constructor(leaf: WorkspaceLeaf, private readonly plugin: FlowReaderPlugin) { super(leaf); }
-  getViewType(): string { return FLOW_COMIC_VIEW; }
+  constructor(leaf: WorkspaceLeaf, private readonly plugin: LeituraDSPlugin) { super(leaf); }
+  getViewType(): string { return LEITURA_DS_COMIC_VIEW; }
   getDisplayText(): string { return this.comic?.title ?? "Leitura DS"; }
   getIcon(): string { return "images"; }
 
   async onOpen(): Promise<void> {
     this.renderShell();
     this.registerDomEvent(document, "keydown", (event) => {
-      if (this.app.workspace.getActiveViewOfType(FlowComicView) !== this || this.isTyping(event.target)) return;
+      if (this.app.workspace.getActiveViewOfType(LeituraDSComicView) !== this || this.isTyping(event.target)) return;
       if (event.key === "ArrowLeft") { event.preventDefault(); void this.movePage(this.readingDirection === "rtl" ? 1 : -1); }
       if (event.key === "ArrowRight") { event.preventDefault(); void this.movePage(this.readingDirection === "rtl" ? -1 : 1); }
       if (event.key === "PageUp") { event.preventDefault(); void this.movePage(-1); }

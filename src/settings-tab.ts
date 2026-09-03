@@ -1,18 +1,18 @@
 import { App, Notice, PluginSettingTab, Setting } from "obsidian";
-import type FlowReaderPlugin from "./main";
+import type LeituraDSPlugin from "./main";
 import type { ReaderTheme, SocialReadingMode } from "./types";
 
 const THEMES: Record<ReaderTheme, string> = {
   default: "Obsidian", paper: "Papel", sepia: "Sépia", forest: "Floresta", midnight: "Meia-noite", dark: "Escuro"
 };
 
-export class FlowReaderSettingTab extends PluginSettingTab {
-  constructor(app: App, private readonly plugin: FlowReaderPlugin) { super(app, plugin); }
+export class LeituraDSSettingTab extends PluginSettingTab {
+  constructor(app: App, private readonly plugin: LeituraDSPlugin) { super(app, plugin); }
 
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
-    const settings = this.plugin.flowSettings;
+    const settings = this.plugin.leituraSettings;
     const folderOptions: Record<string, string> = { "": "Raiz do Vault" };
     this.plugin.getVaultFolders().forEach((folder) => { folderOptions[folder] = folder; });
     if (settings.libraryFolder && !folderOptions[settings.libraryFolder]) folderOptions[settings.libraryFolder] = settings.libraryFolder;

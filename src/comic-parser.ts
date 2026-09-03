@@ -71,7 +71,7 @@ export async function parseCbz(buffer: ArrayBuffer, vaultPath: string): Promise<
 /** CBR follows the same reader flow, using the bundled local UnRAR WebAssembly runtime. */
 export async function parseCbr(buffer: ArrayBuffer, vaultPath: string, runtimeBaseUrl: string): Promise<ComicBook> {
   const unrar = await getUnrarModule(runtimeBaseUrl);
-  const archivePath = "/flow-reader-comic.cbr";
+  const archivePath = "/leitura-ds-comic.cbr";
   unrar.FS.writeFile(archivePath, new Uint8Array(buffer));
   const archive = new unrar.Archive(new unrar.CommandData());
   if (!archive.openFile(archivePath)) throw new Error("Não foi possível abrir este arquivo CBR.");

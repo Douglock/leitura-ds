@@ -1,11 +1,11 @@
 import { ItemView, WorkspaceLeaf } from "obsidian";
-import type FlowReaderPlugin from "./main";
+import type LeituraDSPlugin from "./main";
 
-export const FLOW_STATS_VIEW = "flow-reader-stats";
+export const LEITURA_DS_STATS_VIEW = "leitura-ds-stats";
 
-export class FlowStatsView extends ItemView {
-  constructor(leaf: WorkspaceLeaf, private readonly plugin: FlowReaderPlugin) { super(leaf); }
-  getViewType(): string { return FLOW_STATS_VIEW; }
+export class LeituraDSStatsView extends ItemView {
+  constructor(leaf: WorkspaceLeaf, private readonly plugin: LeituraDSPlugin) { super(leaf); }
+  getViewType(): string { return LEITURA_DS_STATS_VIEW; }
   getDisplayText(): string { return "Estatísticas de leitura"; }
   getIcon(): string { return "chart-no-axes-combined"; }
   async onOpen(): Promise<void> { this.renderStats(); }
@@ -27,12 +27,12 @@ export class FlowStatsView extends ItemView {
     const totalSeconds = Object.values(days).reduce((total, day) => total + day.seconds, 0);
     const streak = this.getStreak(days, today);
     const todaySeconds = days[today.toISOString().slice(0, 10)]?.seconds ?? 0;
-    const goalSeconds = this.plugin.flowSettings.dailyGoalMinutes * 60;
+    const goalSeconds = this.plugin.leituraSettings.dailyGoalMinutes * 60;
     const cards = root.createDiv({ cls: "flow-stats__summary" });
     this.metric(cards, this.formatDuration(weekSeconds), "Nesta semana");
     this.metric(cards, `${streak} ${streak === 1 ? "dia" : "dias"}`, "Sequência atual");
     this.metric(cards, this.formatDuration(totalSeconds), "Total registrado");
-    this.metric(cards, `${Math.min(100, Math.round((todaySeconds / Math.max(1, goalSeconds)) * 100))}%`, `Meta de hoje · ${this.plugin.flowSettings.dailyGoalMinutes} min`);
+    this.metric(cards, `${Math.min(100, Math.round((todaySeconds / Math.max(1, goalSeconds)) * 100))}%`, `Meta de hoje · ${this.plugin.leituraSettings.dailyGoalMinutes} min`);
     const chartSection = root.createDiv({ cls: "flow-stats__section" });
     chartSection.createEl("h3", { text: "Últimos 7 dias" });
     const maximum = Math.max(60, ...dates.map((date) => days[date]?.seconds ?? 0));

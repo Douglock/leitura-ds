@@ -25,12 +25,12 @@ export class AnnotationModal extends Modal {
 
   onOpen(): void {
     this.titleEl.setText(this.onDelete ? "Editar destaque" : "Criar destaque");
-    this.contentEl.createEl("blockquote", { cls: "flow-reader__annotation-quote", text: this.annotation.quote });
-    const colors = this.contentEl.createDiv({ cls: "flow-reader__annotation-colors" });
+    this.contentEl.createEl("blockquote", { cls: "leitura-ds__annotation-quote", text: this.annotation.quote });
+    const colors = this.contentEl.createDiv({ cls: "leitura-ds__annotation-colors" });
     const colorButtons = new Map<HighlightColor, HTMLButtonElement>();
     COLORS.forEach((color) => {
       const button = colors.createEl("button", {
-        cls: `flow-reader__color flow-reader__color--${color}`,
+        cls: `leitura-ds__color leitura-ds__color--${color}`,
         attr: { "aria-label": `Cor ${COLOR_NAMES[color]}`, title: COLOR_NAMES[color] }
       });
       colorButtons.set(color, button);
@@ -41,16 +41,16 @@ export class AnnotationModal extends Modal {
     });
     colorButtons.get(this.selectedColor)?.addClass("is-selected");
     const textarea = this.contentEl.createEl("textarea", {
-      cls: "flow-reader__annotation-comment",
+      cls: "leitura-ds__annotation-comment",
       attr: { placeholder: "Escreva um comentário sobre este trecho…", "aria-label": "Comentário" }
     });
     textarea.value = this.annotation.comment;
     const tags = this.contentEl.createEl("input", {
-      cls: "flow-reader__annotation-tags",
+      cls: "leitura-ds__annotation-tags",
       attr: { placeholder: "Etiquetas separadas por vírgula: ideia, ação", "aria-label": "Etiquetas" }
     });
     tags.value = (this.annotation.tags ?? []).join(", ");
-    const actions = this.contentEl.createDiv({ cls: "flow-reader__annotation-actions" });
+    const actions = this.contentEl.createDiv({ cls: "leitura-ds__annotation-actions" });
     const copy = actions.createEl("button", { text: "Copiar destaque", attr: { "aria-label": "Copiar trecho e comentário" } });
     copy.addEventListener("click", () => void this.copyAnnotation(textarea.value.trim()));
     if (this.onDelete) {

@@ -103,7 +103,7 @@ export interface BookAnnotation {
   updatedAt: string;
 }
 
-export interface FlowReaderData {
+export interface LeituraDSData {
   positions: Record<string, ReadingPosition>;
   referencePoints?: Record<string, ReadingPosition>;
   annotations?: Record<string, BookAnnotation[]>;
@@ -111,7 +111,7 @@ export interface FlowReaderData {
   markers?: Record<string, BookMarker[]>;
   annotationTombstones?: Record<string, string>;
   readingStats?: ReadingStats;
-  settings?: FlowReaderSettings;
+  settings?: LeituraDSSettings;
 }
 
 export interface ReadingDayStats {
@@ -124,7 +124,7 @@ export interface ReadingStats {
   lastReadAt?: string;
 }
 
-export interface FlowReaderSharedState {
+export interface LeituraDSSharedState {
   version: 1;
   updatedAt: string;
   positions: Record<string, ReadingPosition>;
@@ -133,7 +133,7 @@ export interface FlowReaderSharedState {
   annotationTombstones: Record<string, string>;
 }
 
-export interface FlowReaderSettings {
+export interface LeituraDSSettings {
   baseFolder: string;
   libraryFolder: string;
   exportFolder: string;

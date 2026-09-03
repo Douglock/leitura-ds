@@ -59,7 +59,7 @@ Enquanto o plugin não estiver listado na comunidade do Obsidian, use a instala�
 3. Copie `main.js`, `manifest.json`, `styles.css` e a pasta `assets/` para:
 
 ```text
-<seu-vault>/.obsidian/plugins/flow-reader/
+<seu-vault>/.obsidian/plugins/leitura-ds/
 ```
 
 4. No Obsidian, abra **Configurações → Plugins não oficiais**, habilite o Leitura DS e escolha as pastas em **Leitura DS**.

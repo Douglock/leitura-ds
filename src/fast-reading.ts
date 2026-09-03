@@ -103,9 +103,9 @@ export class FastReader {
     const prefix = document.createElement("span");
     const focus = document.createElement("span");
     const suffix = document.createElement("span");
-    prefix.className = "flow-reader__orp-prefix";
-    focus.className = "flow-reader__orp-focus";
-    suffix.className = "flow-reader__orp-suffix";
+    prefix.className = "leitura-ds__orp-prefix";
+    focus.className = "leitura-ds__orp-focus";
+    suffix.className = "leitura-ds__orp-suffix";
     prefix.textContent = word.slice(0, focusIndex);
     focus.textContent = word.charAt(focusIndex) || " ";
     suffix.textContent = word.slice(focusIndex + 1);

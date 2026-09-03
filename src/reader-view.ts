@@ -1,5 +1,5 @@
 import { ItemView, Notice, Platform, setIcon, WorkspaceLeaf } from "obsidian";
-import type FlowReaderPlugin from "./main";
+import type LeituraDSPlugin from "./main";
 import { BookSearchModal } from "./book-search-modal";
 import { AnnotationModal } from "./annotation-modal";
 import { AppearanceModal } from "./appearance-modal";
@@ -9,9 +9,9 @@ import { parseEpub } from "./epub-parser";
 import { dirname, resolvePath } from "./path-utils";
 import type { BookAnnotation, BookMarker, ParsedBook, ReaderAppearance, ReaderFont, ReaderTheme, ReadingPosition, SocialReadingMode } from "./types";
 
-export const FLOW_READER_VIEW = "flow-reader-view";
+export const LEITURA_DS_VIEW = "leitura-ds-view";
 
-export class FlowReaderView extends ItemView {
+export class LeituraDSView extends ItemView {
   private book: ParsedBook | null = null;
   private chapterIndex = 0;
   private readerHost!: HTMLElement;
@@ -79,12 +79,12 @@ export class FlowReaderView extends ItemView {
   private socialPointerStart: number | null = null;
   private socialMove: ((delta: number) => void) | null = null;
 
-  constructor(leaf: WorkspaceLeaf, private readonly plugin: FlowReaderPlugin) {
+  constructor(leaf: WorkspaceLeaf, private readonly plugin: LeituraDSPlugin) {
     super(leaf);
   }
 
   getViewType(): string {
-    return FLOW_READER_VIEW;
+    return LEITURA_DS_VIEW;
   }
 
   getDisplayText(): string {
@@ -132,37 +132,37 @@ export class FlowReaderView extends ItemView {
   private renderShell(): void {
     const container = this.containerEl.children[1] as HTMLElement;
     container.empty();
-    container.addClass("flow-reader");
+    container.addClass("leitura-ds");
 
-    const toolbar = container.createDiv({ cls: "flow-reader__toolbar" });
-    const primary = toolbar.createDiv({ cls: "flow-reader__toolbar-primary" });
+    const toolbar = container.createDiv({ cls: "leitura-ds__toolbar" });
+    const primary = toolbar.createDiv({ cls: "leitura-ds__toolbar-primary" });
     const homeButton = primary.createEl("button", { text: "⌂", attr: { "aria-label": "Ir para Minha biblioteca", title: "Minha biblioteca" } });
     homeButton.addEventListener("click", () => void this.plugin.openLibrary());
-    const highlightsButton = primary.createEl("button", { cls: "flow-reader__primary-action", attr: { "aria-label": "Meus destaques", title: "Meus destaques" } });
+    const highlightsButton = primary.createEl("button", { cls: "leitura-ds__primary-action", attr: { "aria-label": "Meus destaques", title: "Meus destaques" } });
     setIcon(highlightsButton, "highlighter");
     highlightsButton.addEventListener("click", () => void this.plugin.openHighlights());
-    const fastButton = primary.createEl("button", { cls: "flow-reader__fast-toggle flow-reader__primary-action", attr: { "aria-label": "Leitura rápida", title: "Leitura rápida" } });
+    const fastButton = primary.createEl("button", { cls: "leitura-ds__fast-toggle leitura-ds__primary-action", attr: { "aria-label": "Leitura rápida", title: "Leitura rápida" } });
     setIcon(fastButton, "gauge");
     fastButton.addEventListener("click", () => this.openFastPanel());
-    this.titleElement = primary.createDiv({ cls: "flow-reader__title", text: "Leitura DS" });
-    const moreButton = primary.createEl("button", { text: "⋯", cls: "flow-reader__more", attr: { "aria-label": "Mais ferramentas", "aria-expanded": "false" } });
-    const tools = toolbar.createDiv({ cls: "flow-reader__toolbar-tools" });
+    this.titleElement = primary.createDiv({ cls: "leitura-ds__title", text: "Leitura DS" });
+    const moreButton = primary.createEl("button", { text: "⋯", cls: "leitura-ds__more", attr: { "aria-label": "Mais ferramentas", "aria-expanded": "false" } });
+    const tools = toolbar.createDiv({ cls: "leitura-ds__toolbar-tools" });
     this.chapterSelect = tools.createEl("select", { attr: { "aria-label": "Capítulo" } });
     this.chapterSelect.addEventListener("change", () => void this.showChapter(this.chapterSelect.selectedIndex));
-    const smallerText = tools.createEl("button", { text: "A−", cls: "flow-reader__secondary-action", attr: { "aria-label": "Diminuir texto" } });
+    const smallerText = tools.createEl("button", { text: "A−", cls: "leitura-ds__secondary-action", attr: { "aria-label": "Diminuir texto" } });
     smallerText.addEventListener("click", () => this.changeFontSize(-2));
-    const largerText = tools.createEl("button", { text: "A+", cls: "flow-reader__secondary-action", attr: { "aria-label": "Aumentar texto" } });
+    const largerText = tools.createEl("button", { text: "A+", cls: "leitura-ds__secondary-action", attr: { "aria-label": "Aumentar texto" } });
     largerText.addEventListener("click", () => this.changeFontSize(2));
-    const searchButton = tools.createEl("button", { text: "⌕", cls: "flow-reader__secondary-action", attr: { "aria-label": "Pesquisar no livro" } });
+    const searchButton = tools.createEl("button", { text: "⌕", cls: "leitura-ds__secondary-action", attr: { "aria-label": "Pesquisar no livro" } });
     searchButton.addEventListener("click", () => this.openSearch());
-    const savePointButton = tools.createEl("button", { text: "★", cls: "flow-reader__secondary-action", attr: { "aria-label": "Abrir marcadores", title: "Marcadores" } });
+    const savePointButton = tools.createEl("button", { text: "★", cls: "leitura-ds__secondary-action", attr: { "aria-label": "Abrir marcadores", title: "Marcadores" } });
     savePointButton.addEventListener("click", () => this.openMarkers());
-    this.voiceButton = tools.createEl("button", { cls: "flow-reader__secondary-action", attr: { "aria-label": "Ouvir capítulo", title: "Ouvir capítulo" } });
+    this.voiceButton = tools.createEl("button", { cls: "leitura-ds__secondary-action", attr: { "aria-label": "Ouvir capítulo", title: "Ouvir capítulo" } });
     setIcon(this.voiceButton, "volume-2");
     this.voiceButton.addEventListener("click", () => this.toggleSpeech());
-    const themeButton = tools.createEl("button", { text: "◐", cls: "flow-reader__secondary-action", attr: { "aria-label": "Escolher tema e cor", title: "Aparência" } });
+    const themeButton = tools.createEl("button", { text: "◐", cls: "leitura-ds__secondary-action", attr: { "aria-label": "Escolher tema e cor", title: "Aparência" } });
     themeButton.addEventListener("click", () => this.openAppearanceSettings());
-    this.colorFlowButton = tools.createEl("button", { text: "≋", cls: "flow-reader__secondary-action", attr: { "aria-label": "Ativar Fluxo Cromático", title: "Fluxo Cromático" } });
+    this.colorFlowButton = tools.createEl("button", { text: "≋", cls: "leitura-ds__secondary-action", attr: { "aria-label": "Ativar Fluxo Cromático", title: "Fluxo Cromático" } });
     this.colorFlowButton.addEventListener("click", () => {
       this.colorFlow = !this.colorFlow;
       this.colorFlowButton.toggleClass("is-active", this.colorFlow);
@@ -170,7 +170,7 @@ export class FlowReaderView extends ItemView {
       this.applyColorFlow();
       this.schedulePositionSave();
     });
-    this.twoColumnButton = tools.createEl("button", { text: "▥", cls: "flow-reader__secondary-action", attr: { "aria-label": "Ativar leitura em duas colunas", title: "Duas colunas" } });
+    this.twoColumnButton = tools.createEl("button", { text: "▥", cls: "leitura-ds__secondary-action", attr: { "aria-label": "Ativar leitura em duas colunas", title: "Duas colunas" } });
     this.twoColumnButton.addEventListener("click", () => {
       this.twoColumn = !this.twoColumn;
       this.twoColumnButton.toggleClass("is-active", this.twoColumn);
@@ -178,9 +178,9 @@ export class FlowReaderView extends ItemView {
       this.applyTwoColumn();
       this.schedulePositionSave();
     });
-    const focusButton = tools.createEl("button", { text: "◎", cls: "flow-reader__secondary-action", attr: { "aria-label": "Abrir Foco em Linha", title: "Foco em Linha" } });
+    const focusButton = tools.createEl("button", { text: "◎", cls: "leitura-ds__secondary-action", attr: { "aria-label": "Abrir Foco em Linha", title: "Foco em Linha" } });
     focusButton.addEventListener("click", () => this.openFocusMode());
-    this.fullscreenButton = tools.createEl("button", { text: "⛶", cls: "flow-reader__secondary-action", attr: { "aria-label": "Entrar em tela cheia", title: "Tela cheia" } });
+    this.fullscreenButton = tools.createEl("button", { text: "⛶", cls: "leitura-ds__secondary-action", attr: { "aria-label": "Entrar em tela cheia", title: "Tela cheia" } });
     this.fullscreenButton.addEventListener("click", () => void this.toggleFullscreen());
     this.registerDomEvent(document, "fullscreenchange", () => {
       const root = this.containerEl.children[1] as HTMLElement;
@@ -189,27 +189,27 @@ export class FlowReaderView extends ItemView {
       this.fullscreenButton.toggleClass("is-active", active);
       this.fullscreenButton.setAttribute("aria-label", active ? "Sair da tela cheia" : "Entrar em tela cheia");
     });
-    const chapterArrows = tools.createDiv({ cls: "flow-reader__chapter-arrows" });
+    const chapterArrows = tools.createDiv({ cls: "leitura-ds__chapter-arrows" });
     this.previousButton = chapterArrows.createEl("button", { text: "←", attr: { "aria-label": "Capítulo anterior" } });
     this.previousButton.addEventListener("click", () => void this.changeChapter(-1));
     this.nextButton = chapterArrows.createEl("button", { text: "→", attr: { "aria-label": "Próximo capítulo" } });
     this.nextButton.addEventListener("click", () => void this.changeChapter(1));
-    const navigationGroup = tools.createDiv({ cls: "flow-reader__tool-group flow-reader__tool-group--navigation" });
+    const navigationGroup = tools.createDiv({ cls: "leitura-ds__tool-group leitura-ds__tool-group--navigation" });
     navigationGroup.append(this.chapterSelect, chapterArrows);
-    const modesGroup = tools.createDiv({ cls: "flow-reader__tool-group flow-reader__tool-group--modes" });
-    this.socialModeSelect = modesGroup.createEl("select", { cls: "flow-reader__social-select", attr: { "aria-label": "Modo de leitura social", title: "Modo de leitura" } });
+    const modesGroup = tools.createDiv({ cls: "leitura-ds__tool-group leitura-ds__tool-group--modes" });
+    this.socialModeSelect = modesGroup.createEl("select", { cls: "leitura-ds__social-select", attr: { "aria-label": "Modo de leitura social", title: "Modo de leitura" } });
     ([ ["normal", "Leitura"], ["thread", "Thread"], ["stories", "Stories"], ["carousel", "Carrossel"] ] as Array<[SocialReadingMode, string]>).forEach(([value, text]) => this.socialModeSelect.createEl("option", { value, text }));
     this.socialModeSelect.addEventListener("change", () => this.setSocialMode(this.socialModeSelect.value as SocialReadingMode));
     modesGroup.append(themeButton, this.colorFlowButton, this.twoColumnButton, focusButton, this.fullscreenButton);
-    const utilitiesGroup = tools.createDiv({ cls: "flow-reader__tool-group flow-reader__tool-group--utilities" });
+    const utilitiesGroup = tools.createDiv({ cls: "leitura-ds__tool-group leitura-ds__tool-group--utilities" });
     utilitiesGroup.append(smallerText, largerText, searchButton, savePointButton, this.voiceButton);
     moreButton.addEventListener("click", () => {
       const expanded = !toolbar.hasClass("is-expanded");
       toolbar.toggleClass("is-expanded", expanded);
       moreButton.setAttribute("aria-expanded", String(expanded));
     });
-    const progressTrack = container.createDiv({ cls: "flow-reader__reading-progress", attr: { role: "progressbar", "aria-label": "Progresso da leitura. Toque para ir a um ponto", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": "0", tabindex: "0", title: "Toque para ir a um ponto da leitura" } });
-    this.progressFill = progressTrack.createDiv({ cls: "flow-reader__reading-progress-fill" });
+    const progressTrack = container.createDiv({ cls: "leitura-ds__reading-progress", attr: { role: "progressbar", "aria-label": "Progresso da leitura. Toque para ir a um ponto", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": "0", tabindex: "0", title: "Toque para ir a um ponto da leitura" } });
+    this.progressFill = progressTrack.createDiv({ cls: "leitura-ds__reading-progress-fill" });
     progressTrack.addEventListener("pointerdown", (event) => {
       event.preventDefault();
       const rect = progressTrack.getBoundingClientRect();
@@ -225,7 +225,7 @@ export class FlowReaderView extends ItemView {
         void this.jumpToReadingProgress(Math.max(0, Math.min(1, current + (event.key === "ArrowLeft" ? -0.05 : 0.05))));
       }
     });
-    this.statusElement = container.createDiv({ cls: "flow-reader__status", text: "0%" });
+    this.statusElement = container.createDiv({ cls: "leitura-ds__status", text: "0%" });
     this.statusElement.tabIndex = 0;
     this.statusElement.setAttribute("role", "button");
     this.statusElement.setAttribute("aria-label", "Alternar entre tempo do livro e tempo do capítulo");
@@ -239,13 +239,13 @@ export class FlowReaderView extends ItemView {
         this.statusElement.click();
       }
     });
-    this.syncStatusElement = container.createDiv({ cls: "flow-reader__sync-status", text: "Salvo no Vault" });
-    this.returnReadingBar = container.createDiv({ cls: "flow-reader__return-reading is-hidden" });
+    this.syncStatusElement = container.createDiv({ cls: "leitura-ds__sync-status", text: "Salvo no Vault" });
+    this.returnReadingBar = container.createDiv({ cls: "leitura-ds__return-reading is-hidden" });
     this.returnReadingText = this.returnReadingBar.createSpan({ text: "Você abriu um destaque." });
     const returnButton = this.returnReadingBar.createEl("button", { text: "Voltar para onde parei", cls: "mod-cta" });
     returnButton.addEventListener("click", () => void this.returnToReadingPosition());
 
-    this.readerHost = container.createDiv({ cls: "flow-reader__content" });
+    this.readerHost = container.createDiv({ cls: "leitura-ds__content" });
     this.readerHost.addEventListener("scroll", () => {
       this.noteReadingActivity();
       this.scheduleProgressUpdate();
@@ -258,8 +258,8 @@ export class FlowReaderView extends ItemView {
       this.touchStart = touch ? { x: touch.clientX, y: touch.clientY, at: Date.now() } : null;
     }, { passive: true });
     this.readerHost.addEventListener("touchend", (event) => this.handleChapterSwipe(event), { passive: true });
-    this.readerHost.createDiv({ cls: "flow-reader__empty", text: "Abra um arquivo EPUB do seu Vault." });
-    this.socialOverlay = container.createDiv({ cls: "flow-reader__social is-hidden" });
+    this.readerHost.createDiv({ cls: "leitura-ds__empty", text: "Abra um arquivo EPUB do seu Vault." });
+    this.socialOverlay = container.createDiv({ cls: "leitura-ds__social is-hidden" });
     this.socialOverlay.addEventListener("pointerdown", (event) => { this.socialPointerStart = event.clientX; });
     this.socialOverlay.addEventListener("pointerup", (event) => {
       if (this.socialPointerStart === null || this.socialMode === "thread") return;
@@ -268,27 +268,27 @@ export class FlowReaderView extends ItemView {
       if (Math.abs(distance) > 44) this.socialMove?.(distance < 0 ? 1 : -1);
       else if (this.socialMode === "stories") this.socialMove?.(event.clientX > window.innerWidth / 2 ? 1 : -1);
     });
-    this.fastPanel = container.createDiv({ cls: "flow-reader__fast is-hidden" });
+    this.fastPanel = container.createDiv({ cls: "leitura-ds__fast is-hidden" });
     this.renderFastControls();
-    this.focusPanel = container.createDiv({ cls: "flow-reader__focus-controls is-hidden" });
+    this.focusPanel = container.createDiv({ cls: "leitura-ds__focus-controls is-hidden" });
     this.renderFocusControls();
-    const immersiveClose = container.createEl("button", { text: "×", cls: "flow-reader__immersive-close", attr: { "aria-label": "Sair da tela cheia" } });
+    const immersiveClose = container.createEl("button", { text: "×", cls: "leitura-ds__immersive-close", attr: { "aria-label": "Sair da tela cheia" } });
     immersiveClose.addEventListener("click", () => void this.toggleFullscreen());
-    this.selectionBar = document.body.createDiv({ cls: "flow-reader__selection-bar is-hidden" });
+    this.selectionBar = document.body.createDiv({ cls: "leitura-ds__selection-bar is-hidden" });
     const highlightButton = this.selectionBar.createEl("button", { text: "Destacar e comentar", cls: "mod-cta" });
     highlightButton.addEventListener("click", () => this.openPendingAnnotation());
     const startFastButton = this.selectionBar.createEl("button", { text: "Marcar para ler daqui", attr: { "aria-label": "Marcar palavra como início da leitura rápida" } });
     startFastButton.addEventListener("click", () => this.markFastStartFromSelection());
-    this.selectionBar.createSpan({ cls: "flow-reader__selection-hint", text: "Dois toques fora para cancelar" });
+    this.selectionBar.createSpan({ cls: "leitura-ds__selection-hint", text: "Dois toques fora para cancelar" });
     container.addEventListener("keydown", (event) => this.handleReaderKeydown(event));
   }
 
   private renderFastControls(): void {
-    const header = this.fastPanel.createDiv({ cls: "flow-reader__fast-header" });
-    const close = header.createEl("button", { text: "×", cls: "flow-reader__fast-close", attr: { "aria-label": "Sair da leitura rápida" } });
+    const header = this.fastPanel.createDiv({ cls: "leitura-ds__fast-header" });
+    const close = header.createEl("button", { text: "×", cls: "leitura-ds__fast-close", attr: { "aria-label": "Sair da leitura rápida" } });
     close.addEventListener("click", () => void this.closeFastPanel());
-    header.createDiv({ cls: "flow-reader__fast-title", text: "Leitura rápida" });
-    const stage = this.fastPanel.createDiv({ cls: "flow-reader__fast-stage" });
+    header.createDiv({ cls: "leitura-ds__fast-title", text: "Leitura rápida" });
+    const stage = this.fastPanel.createDiv({ cls: "leitura-ds__fast-stage" });
     stage.tabIndex = 0;
     stage.setAttribute("role", "button");
     stage.setAttribute("aria-label", "Reproduzir ou pausar leitura rápida");
@@ -299,12 +299,12 @@ export class FlowReaderView extends ItemView {
         this.toggleFastPlayback();
       }
     });
-    stage.createDiv({ cls: "flow-reader__focus-line flow-reader__focus-line--top" });
-    stage.createDiv({ cls: "flow-reader__focus-tick flow-reader__focus-tick--top" });
-    this.fastOutput = stage.createDiv({ cls: "flow-reader__fast-word", text: "Leitura rápida" });
-    stage.createDiv({ cls: "flow-reader__focus-line flow-reader__focus-line--bottom" });
-    stage.createDiv({ cls: "flow-reader__focus-tick flow-reader__focus-tick--bottom" });
-    const controls = this.fastPanel.createDiv({ cls: "flow-reader__fast-controls" });
+    stage.createDiv({ cls: "leitura-ds__focus-line leitura-ds__focus-line--top" });
+    stage.createDiv({ cls: "leitura-ds__focus-tick leitura-ds__focus-tick--top" });
+    this.fastOutput = stage.createDiv({ cls: "leitura-ds__fast-word", text: "Leitura rápida" });
+    stage.createDiv({ cls: "leitura-ds__focus-line leitura-ds__focus-line--bottom" });
+    stage.createDiv({ cls: "leitura-ds__focus-tick leitura-ds__focus-tick--bottom" });
+    const controls = this.fastPanel.createDiv({ cls: "leitura-ds__fast-controls" });
     const back = controls.createEl("button", { text: "−5", attr: { "aria-label": "Voltar cinco palavras" } });
     this.fastPlayButton = controls.createEl("button", { text: "▶", attr: { "aria-label": "Reproduzir ou pausar" } });
     const forward = controls.createEl("button", { text: "+5", attr: { "aria-label": "Avançar cinco palavras" } });
@@ -315,7 +315,7 @@ export class FlowReaderView extends ItemView {
     const reset = controls.createEl("button", { text: "↺", attr: { "aria-label": "Restaurar velocidade e tamanho padrão", title: "Restaurar padrão" } });
     back.addEventListener("click", () => this.fastReader?.seek(-5));
     forward.addEventListener("click", () => this.fastReader?.seek(5));
-    this.fastTimeElement = controls.createSpan({ cls: "flow-reader__fast-time", text: "Tempo restante: —" });
+    this.fastTimeElement = controls.createSpan({ cls: "leitura-ds__fast-time", text: "Tempo restante: —" });
     this.fastPlayButton.addEventListener("click", () => this.toggleFastPlayback());
     this.fastSpeedInput.addEventListener("input", () => {
       const wordsPerMinute = Number(this.fastSpeedInput.value);
@@ -328,10 +328,10 @@ export class FlowReaderView extends ItemView {
     smaller.addEventListener("click", () => this.changeFastFontSize(-4));
     larger.addEventListener("click", () => this.changeFastFontSize(4));
     reset.addEventListener("click", () => {
-      this.fastWpm = this.plugin.flowSettings.fastWordsPerMinute;
+      this.fastWpm = this.plugin.leituraSettings.fastWordsPerMinute;
       this.fastSpeedInput.value = String(this.fastWpm);
       this.fastSpeedLabel.textContent = `${this.fastWpm} ppm`;
-      this.fastFontSize = this.plugin.flowSettings.fastFontSize;
+      this.fastFontSize = this.plugin.leituraSettings.fastFontSize;
       this.applyFastFontSize();
       this.fastReader?.setOptions({ wordsPerMinute: this.fastWpm });
       this.updateFastRemainingTime();
@@ -342,12 +342,12 @@ export class FlowReaderView extends ItemView {
   private renderFocusControls(): void {
     const close = this.focusPanel.createEl("button", { text: "×", attr: { "aria-label": "Sair do Foco em Linha" } });
     close.addEventListener("click", () => this.closeFocusMode());
-    this.focusPanel.createSpan({ cls: "flow-reader__focus-label", text: "Foco em Linha" });
+    this.focusPanel.createSpan({ cls: "leitura-ds__focus-label", text: "Foco em Linha" });
     const back = this.focusPanel.createEl("button", { text: "−5", attr: { "aria-label": "Voltar cinco palavras" } });
     this.focusPlayButton = this.focusPanel.createEl("button", { text: "▶", cls: "mod-cta", attr: { "aria-label": "Reproduzir ou pausar" } });
     const forward = this.focusPanel.createEl("button", { text: "+5", attr: { "aria-label": "Avançar cinco palavras" } });
     const speed = this.focusPanel.createEl("input", { type: "range", attr: { min: "80", max: "600", step: "10", value: String(this.focusWpm), "aria-label": "Velocidade do Foco em Linha" } });
-    const speedLabel = this.focusPanel.createSpan({ cls: "flow-reader__focus-speed", text: `${this.focusWpm} ppm` });
+    const speedLabel = this.focusPanel.createSpan({ cls: "leitura-ds__focus-speed", text: `${this.focusWpm} ppm` });
     const reset = this.focusPanel.createEl("button", { text: "↺", attr: { "aria-label": "Restaurar velocidade padrão", title: "Restaurar padrão" } });
     back.addEventListener("click", () => this.seekFocus(-5));
     forward.addEventListener("click", () => this.seekFocus(5));
@@ -361,7 +361,7 @@ export class FlowReaderView extends ItemView {
       }
     });
     reset.addEventListener("click", () => {
-      this.focusWpm = this.plugin.flowSettings.focusWordsPerMinute;
+      this.focusWpm = this.plugin.leituraSettings.focusWordsPerMinute;
       speed.value = String(this.focusWpm);
       speedLabel.textContent = `${this.focusWpm} ppm`;
       if (this.focusTimer !== null) { this.pauseFocusPlayback(); this.startFocusPlayback(); }
@@ -369,7 +369,7 @@ export class FlowReaderView extends ItemView {
   }
 
   private openFocusMode(): void {
-    const article = this.readerHost.querySelector<HTMLElement>(".flow-reader__chapter");
+    const article = this.readerHost.querySelector<HTMLElement>(".leitura-ds__chapter");
     if (!article) return;
     this.fastReader?.pause();
     this.fastPlayButton.textContent = "▶";
@@ -382,7 +382,7 @@ export class FlowReaderView extends ItemView {
 
   private closeFocusMode(): void {
     this.pauseFocusPlayback();
-    this.readerHost.querySelector<HTMLElement>(".flow-reader__chapter")?.removeClass("is-focus-reading");
+    this.readerHost.querySelector<HTMLElement>(".leitura-ds__chapter")?.removeClass("is-focus-reading");
     this.focusPanel.addClass("is-hidden");
     this.fastWordIndex = this.focusIndex;
     this.highlightStoppedWord();
@@ -390,8 +390,8 @@ export class FlowReaderView extends ItemView {
   }
 
   private prepareFocusWords(article: HTMLElement): void {
-    if (article.querySelector(".flow-reader__focus-word")) {
-      this.focusWords = Array.from(article.querySelectorAll<HTMLElement>(".flow-reader__focus-word"));
+    if (article.querySelector(".leitura-ds__focus-word")) {
+      this.focusWords = Array.from(article.querySelectorAll<HTMLElement>(".leitura-ds__focus-word"));
       return;
     }
     const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT, {
@@ -406,11 +406,11 @@ export class FlowReaderView extends ItemView {
       text.data.split(/(\s+)/).forEach((part) => {
         if (!part) return;
         if (/^\s+$/.test(part)) fragment.append(document.createTextNode(part));
-        else fragment.append(Object.assign(document.createElement("span"), { className: "flow-reader__focus-word", textContent: part }));
+        else fragment.append(Object.assign(document.createElement("span"), { className: "leitura-ds__focus-word", textContent: part }));
       });
       text.replaceWith(fragment);
     });
-    this.focusWords = Array.from(article.querySelectorAll<HTMLElement>(".flow-reader__focus-word"));
+    this.focusWords = Array.from(article.querySelectorAll<HTMLElement>(".leitura-ds__focus-word"));
   }
 
   private toggleFocusPlayback(): void {
@@ -470,7 +470,7 @@ export class FlowReaderView extends ItemView {
       this.voiceButton.removeClass("is-active");
       return;
     }
-    const article = this.readerHost?.querySelector<HTMLElement>(".flow-reader__chapter");
+    const article = this.readerHost?.querySelector<HTMLElement>(".leitura-ds__chapter");
     const chapterText = article ? this.getReadableArticleText(article) : this.readerHost?.innerText ?? "";
     const chunks = chapterText.match(/\S+\s*/g) ?? [];
     // The saved reader word is the source of truth for fast reading and voice alike.
@@ -478,7 +478,7 @@ export class FlowReaderView extends ItemView {
     if (!source) return;
     const utterance = new SpeechSynthesisUtterance(source);
     utterance.lang = "pt-BR";
-    utterance.rate = this.plugin.flowSettings.voiceRate ?? this.voiceRate;
+    utterance.rate = this.plugin.leituraSettings.voiceRate ?? this.voiceRate;
     utterance.onend = () => this.voiceButton?.removeClass("is-active");
     utterance.onerror = () => this.voiceButton?.removeClass("is-active");
     this.voiceButton.addClass("is-active");
@@ -493,7 +493,7 @@ export class FlowReaderView extends ItemView {
       return;
     }
     this.readerHost.empty();
-    this.readerHost.createDiv({ cls: "flow-reader__loading", text: "Abrindo livro…" });
+    this.readerHost.createDiv({ cls: "leitura-ds__loading", text: "Abrindo livro…" });
     try {
       this.releaseBook();
       this.chapterWordCounts.clear();
@@ -510,7 +510,7 @@ export class FlowReaderView extends ItemView {
       this.book.chapters.forEach((chapter) => this.chapterSelect.createEl("option", { text: chapter.label }));
       const saved = this.plugin.getPosition(this.book.id);
       this.returnPosition = this.requestedAnnotationId && saved ? { ...saved } : null;
-      const defaults = this.plugin.flowSettings;
+      const defaults = this.plugin.leituraSettings;
       this.fontSize = saved?.fontSize ?? defaults.defaultFontSize;
       this.theme = saved?.theme ?? defaults.defaultTheme;
       this.focusColor = saved?.focusColor ?? defaults.defaultFocusColor;
@@ -547,7 +547,7 @@ export class FlowReaderView extends ItemView {
     } catch (error) {
       console.error("Leitura DS failed to open EPUB", error);
       this.readerHost.empty();
-      this.readerHost.createDiv({ cls: "flow-reader__error", text: error instanceof Error ? error.message : "Não foi possível abrir o EPUB." });
+      this.readerHost.createDiv({ cls: "leitura-ds__error", text: error instanceof Error ? error.message : "Não foi possível abrir o EPUB." });
     }
   }
 
@@ -565,7 +565,7 @@ export class FlowReaderView extends ItemView {
     this.previousButton.disabled = this.chapterIndex === 0;
     this.nextButton.disabled = this.chapterIndex === this.book.chapters.length - 1;
     this.readerHost.empty();
-    const article = this.readerHost.createEl("article", { cls: "flow-reader__chapter" });
+    const article = this.readerHost.createEl("article", { cls: "leitura-ds__chapter" });
     article.style.fontSize = `${this.fontSize}px`;
     article.innerHTML = chapter.html;
     this.applyReadingLayout(article);
@@ -617,7 +617,7 @@ export class FlowReaderView extends ItemView {
   }
 
   private renderSocialMode(): void {
-    const article = this.readerHost.querySelector<HTMLElement>(".flow-reader__chapter");
+    const article = this.readerHost.querySelector<HTMLElement>(".leitura-ds__chapter");
     if (!article || this.socialMode === "normal") return;
     // Cards that occupy an entire screen need deliberately short passages. The
     // thread can keep longer passages because it scrolls as a normal feed.
@@ -627,29 +627,29 @@ export class FlowReaderView extends ItemView {
     this.socialIndex = Math.max(0, index);
     this.socialOverlay.empty();
     this.socialOverlay.removeClass("is-hidden");
-    this.socialOverlay.className = `flow-reader__social flow-reader__social--${this.socialMode}`;
+    this.socialOverlay.className = `leitura-ds__social leitura-ds__social--${this.socialMode}`;
     this.readerHost.addClass("is-social-active");
-    const header = this.socialOverlay.createDiv({ cls: "flow-reader__social-header" });
+    const header = this.socialOverlay.createDiv({ cls: "leitura-ds__social-header" });
     const exit = header.createEl("button", { text: "×", attr: { "aria-label": "Sair deste modo" } });
     exit.addEventListener("click", () => this.setSocialMode("normal"));
     header.createSpan({ text: this.book?.chapters[this.chapterIndex]?.label ?? "Capítulo" });
-    const progress = header.createSpan({ cls: "flow-reader__social-progress" });
+    const progress = header.createSpan({ cls: "leitura-ds__social-progress" });
     const renderStep = (): void => {
       const chunk = this.socialChunks[this.socialIndex];
       if (!chunk) return;
       this.fastWordIndex = chunk.startWord;
       progress.textContent = `${this.socialIndex + 1} / ${this.socialChunks.length}`;
-      this.socialOverlay.querySelector(".flow-reader__social-body")?.remove();
-      const body = this.socialOverlay.createDiv({ cls: "flow-reader__social-body" });
+      this.socialOverlay.querySelector(".leitura-ds__social-body")?.remove();
+      const body = this.socialOverlay.createDiv({ cls: "leitura-ds__social-body" });
       if (this.socialMode === "thread") {
         this.socialChunks.forEach((item, index) => {
-          const card = body.createDiv({ cls: index === this.socialIndex ? "flow-reader__thread-card is-current" : "flow-reader__thread-card", text: item.text });
+          const card = body.createDiv({ cls: index === this.socialIndex ? "leitura-ds__thread-card is-current" : "leitura-ds__thread-card", text: item.text });
           card.addEventListener("click", () => { this.socialIndex = index; renderStep(); });
         });
         body.scrollTop = Math.max(0, (body.querySelector(".is-current") as HTMLElement | null)?.offsetTop - 80 || 0);
       } else {
-        const card = body.createDiv({ cls: "flow-reader__social-card", text: chunk.text, attr: { "aria-live": "polite" } });
-        const navigation = body.createDiv({ cls: "flow-reader__social-navigation" });
+        const card = body.createDiv({ cls: "leitura-ds__social-card", text: chunk.text, attr: { "aria-live": "polite" } });
+        const navigation = body.createDiv({ cls: "leitura-ds__social-navigation" });
         const previous = navigation.createEl("button", { text: "‹", attr: { "aria-label": "Trecho anterior" } });
         const counter = navigation.createSpan({ text: `${this.socialIndex + 1} de ${this.socialChunks.length}` });
         const next = navigation.createEl("button", { text: "›", attr: { "aria-label": "Próximo trecho" } });
@@ -751,7 +751,7 @@ export class FlowReaderView extends ItemView {
 
   private openFastPanel(): void {
     this.clearStoppedWordHighlight();
-    const article = this.readerHost.querySelector<HTMLElement>(".flow-reader__chapter");
+    const article = this.readerHost.querySelector<HTMLElement>(".leitura-ds__chapter");
     if (article && this.fastReader) this.fastReader.load(this.getReadableArticleText(article), this.fastWordIndex);
     this.fastPanel.removeClass("is-hidden");
     this.fastPanel.tabIndex = -1;
@@ -771,7 +771,7 @@ export class FlowReaderView extends ItemView {
 
   private changeFontSize(delta: number): void {
     this.fontSize = Math.max(12, Math.min(40, this.fontSize + delta));
-    const article = this.readerHost.querySelector<HTMLElement>(".flow-reader__chapter");
+    const article = this.readerHost.querySelector<HTMLElement>(".leitura-ds__chapter");
     if (article) article.style.fontSize = `${this.fontSize}px`;
     this.schedulePositionSave();
   }
@@ -805,7 +805,7 @@ export class FlowReaderView extends ItemView {
   }
 
   private highlightSearchTerm(term: string): void {
-    const article = this.readerHost.querySelector<HTMLElement>(".flow-reader__chapter");
+    const article = this.readerHost.querySelector<HTMLElement>(".leitura-ds__chapter");
     if (!article || !term) return;
     const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT);
     let node = walker.nextNode() as Text | null;
@@ -816,7 +816,7 @@ export class FlowReaderView extends ItemView {
         range.setStart(node, index);
         range.setEnd(node, index + term.length);
         const mark = document.createElement("mark");
-        mark.className = "flow-reader__search-mark";
+        mark.className = "leitura-ds__search-mark";
         range.surroundContents(mark);
         mark.scrollIntoView({ block: "center" });
         return;
@@ -851,7 +851,7 @@ export class FlowReaderView extends ItemView {
     const current = this.plugin.getPosition(this.book.id);
     this.returnPosition = current ? { ...current } : null;
     await this.showChapter(marker.position.chapterIndex, false, "", true);
-    const article = this.readerHost.querySelector<HTMLElement>(".flow-reader__chapter");
+    const article = this.readerHost.querySelector<HTMLElement>(".leitura-ds__chapter");
     if (!article) return;
     this.fastWordIndex = this.resolveSavedWordIndex(article, marker.position, marker.position.fastWordIndex ?? 0);
     this.fastReader?.load(this.getReadableArticleText(article), this.fastWordIndex);
@@ -877,7 +877,7 @@ export class FlowReaderView extends ItemView {
       this.pageMargin = next.pageMargin;
       this.textAlign = next.textAlign;
       this.applyTheme();
-      const article = this.readerHost.querySelector<HTMLElement>(".flow-reader__chapter");
+      const article = this.readerHost.querySelector<HTMLElement>(".leitura-ds__chapter");
       if (article) this.applyReadingLayout(article);
       this.schedulePositionSave();
     }).open();
@@ -887,13 +887,13 @@ export class FlowReaderView extends ItemView {
     const root = this.containerEl.children[1] as HTMLElement;
     root.removeClass("is-theme-paper", "is-theme-sepia", "is-theme-forest", "is-theme-midnight", "is-theme-dark");
     if (this.theme !== "default") root.addClass(`is-theme-${this.theme}`);
-    root.style.setProperty("--flow-reader-accent", this.focusColor);
+    root.style.setProperty("--leitura-ds-accent", this.focusColor);
   }
 
   private applyReadingLayout(article: HTMLElement): void {
     const root = this.containerEl.children[1] as HTMLElement;
-    root.style.setProperty("--flow-reader-max-width", `${this.pageWidth}px`);
-    root.style.setProperty("--flow-reader-page-margin", `${this.pageMargin}px`);
+    root.style.setProperty("--leitura-ds-max-width", `${this.pageWidth}px`);
+    root.style.setProperty("--leitura-ds-page-margin", `${this.pageMargin}px`);
     article.style.fontSize = `${this.fontSize}px`;
     article.style.lineHeight = String(this.lineHeight);
     article.style.textAlign = this.textAlign;
@@ -906,12 +906,12 @@ export class FlowReaderView extends ItemView {
   }
 
   private applyColorFlow(): void {
-    const article = this.readerHost?.querySelector<HTMLElement>(".flow-reader__chapter");
+    const article = this.readerHost?.querySelector<HTMLElement>(".leitura-ds__chapter");
     article?.toggleClass("is-color-flow", this.colorFlow);
   }
 
   private applyTwoColumn(): void {
-    const article = this.readerHost?.querySelector<HTMLElement>(".flow-reader__chapter");
+    const article = this.readerHost?.querySelector<HTMLElement>(".leitura-ds__chapter");
     article?.toggleClass("is-two-column", this.twoColumn);
   }
 
@@ -960,7 +960,7 @@ export class FlowReaderView extends ItemView {
 
   private clearStoppedWordHighlight(): void {
     const parents = new Set<HTMLElement>();
-    this.readerHost.querySelectorAll<HTMLElement>(".flow-reader__stopped-word").forEach((mark) => {
+    this.readerHost.querySelectorAll<HTMLElement>(".leitura-ds__stopped-word").forEach((mark) => {
       if (mark.parentElement) parents.add(mark.parentElement);
       mark.replaceWith(document.createTextNode(mark.textContent ?? ""));
     });
@@ -969,7 +969,7 @@ export class FlowReaderView extends ItemView {
 
   private highlightStoppedWord(): void {
     this.clearStoppedWordHighlight();
-    const article = this.readerHost.querySelector<HTMLElement>(".flow-reader__chapter");
+    const article = this.readerHost.querySelector<HTMLElement>(".leitura-ds__chapter");
     if (!article || this.fastWordIndex < 0) return;
     const nodes = this.getReadableTextNodes(article);
     const text = nodes.map((node) => node.data).join("");
@@ -991,7 +991,7 @@ export class FlowReaderView extends ItemView {
         const localEnd = Math.min(item.node.data.length, wordEnd - item.start);
         if (localEnd <= localStart) return;
         const mark = document.createElement("mark");
-        mark.className = "flow-reader__stopped-word";
+        mark.className = "leitura-ds__stopped-word";
         const range = document.createRange();
         range.setStart(item.node, localStart);
         range.setEnd(item.node, localEnd);
@@ -1001,13 +1001,13 @@ export class FlowReaderView extends ItemView {
           const localFocus = focusOffset - (item.start + localStart);
           const prefix = document.createTextNode(segment.slice(0, localFocus));
           const focus = document.createElement("span");
-          focus.className = "flow-reader__stopped-focus";
+          focus.className = "leitura-ds__stopped-focus";
           focus.textContent = segment.charAt(localFocus);
           const suffix = document.createTextNode(segment.slice(localFocus + 1));
           mark.replaceChildren(prefix, focus, suffix);
         }
     });
-    this.readerHost.querySelector<HTMLElement>(".flow-reader__stopped-word")?.scrollIntoView({ block: "center", behavior: "smooth" });
+    this.readerHost.querySelector<HTMLElement>(".leitura-ds__stopped-word")?.scrollIntoView({ block: "center", behavior: "smooth" });
   }
 
   private schedulePositionSave(): void {
@@ -1046,7 +1046,7 @@ export class FlowReaderView extends ItemView {
     const progress = (this.chapterIndex + chapterProgress) / this.book.chapters.length;
     this.updateReadingStatus(progress, chapterProgress);
     if (this.returnPosition) return;
-    const article = this.readerHost.querySelector<HTMLElement>(".flow-reader__chapter");
+    const article = this.readerHost.querySelector<HTMLElement>(".leitura-ds__chapter");
     const words = article ? this.getReadableWords(article) : [];
     const safeWordIndex = Math.max(0, Math.min(this.fastWordIndex, Math.max(0, words.length - 1)));
     await this.plugin.setPosition(this.book.id, {
@@ -1205,7 +1205,7 @@ export class FlowReaderView extends ItemView {
   }
 
   private handleChapterSwipe(event: TouchEvent): void {
-    if (!this.plugin.flowSettings.swipeNavigation) return;
+    if (!this.plugin.leituraSettings.swipeNavigation) return;
     const start = this.touchStart;
     this.touchStart = null;
     const touch = event.changedTouches.item(0);
@@ -1246,7 +1246,7 @@ export class FlowReaderView extends ItemView {
   }
 
   private captureSelection(): void {
-    const article = this.readerHost.querySelector<HTMLElement>(".flow-reader__chapter");
+    const article = this.readerHost.querySelector<HTMLElement>(".leitura-ds__chapter");
     const selection = window.getSelection();
     if (!article || !selection || selection.isCollapsed || !selection.rangeCount) {
       this.hideSelectionBar();
@@ -1327,7 +1327,7 @@ export class FlowReaderView extends ItemView {
 
   private markFastStartFromSelection(): void {
     if (!this.pendingSelection) return;
-    const article = this.readerHost.querySelector<HTMLElement>(".flow-reader__chapter");
+    const article = this.readerHost.querySelector<HTMLElement>(".leitura-ds__chapter");
     this.fastWordIndex = this.pendingSelection.wordIndex;
     if (article && this.fastReader) {
       this.fastReader.load(this.getReadableArticleText(article), this.fastWordIndex);
@@ -1387,7 +1387,7 @@ export class FlowReaderView extends ItemView {
         range.setStart(item.node, localStart);
         range.setEnd(item.node, localEnd);
         const mark = document.createElement("mark");
-        mark.className = `flow-reader__annotation flow-reader__annotation--${annotation.color}`;
+        mark.className = `leitura-ds__annotation leitura-ds__annotation--${annotation.color}`;
         mark.dataset.annotationId = annotation.id;
         mark.title = annotation.comment || "Destaque sem comentário";
         range.surroundContents(mark);

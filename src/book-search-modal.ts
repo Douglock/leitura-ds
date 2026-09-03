@@ -14,10 +14,10 @@ export class BookSearchModal extends Modal {
     this.titleEl.setText("Pesquisar no livro");
     const input = this.contentEl.createEl("input", {
       type: "search",
-      cls: "flow-reader__search-input",
+      cls: "leitura-ds__search-input",
       attr: { placeholder: "Digite uma palavra ou frase…", "aria-label": "Pesquisar no livro" }
     });
-    const results = this.contentEl.createDiv({ cls: "flow-reader__search-results" });
+    const results = this.contentEl.createDiv({ cls: "leitura-ds__search-results" });
     const render = (): void => {
       results.empty();
       const query = input.value.trim().toLocaleLowerCase();
@@ -32,7 +32,7 @@ export class BookSearchModal extends Modal {
         count += 1;
         const start = Math.max(0, position - 70);
         const excerpt = `${start > 0 ? "…" : ""}${text.slice(start, position + query.length + 100)}…`;
-        const button = results.createEl("button", { cls: "flow-reader__search-result" });
+        const button = results.createEl("button", { cls: "leitura-ds__search-result" });
         button.createEl("strong", { text: chapter.label });
         button.createEl("span", { text: excerpt });
         button.addEventListener("click", () => {
@@ -40,7 +40,7 @@ export class BookSearchModal extends Modal {
           this.onChoose(chapterIndex, input.value.trim());
         });
       });
-      if (!count) results.createDiv({ cls: "flow-reader__search-empty", text: "Nenhum resultado." });
+      if (!count) results.createDiv({ cls: "leitura-ds__search-empty", text: "Nenhum resultado." });
     };
     input.addEventListener("input", render);
     window.setTimeout(() => input.focus(), 0);
