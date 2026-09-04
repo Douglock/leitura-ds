@@ -1389,12 +1389,18 @@ export class LeituraDSView extends ItemView {
   private openPendingAnnotation(): void {
     if (!this.book || !this.pendingSelection) return;
     const now = new Date().toISOString();
+    const article = this.readerHost.querySelector<HTMLElement>(".leitura-ds__chapter");
+    const anchor = article ? createTextAnchor(this.getReadableWords(article), this.pendingSelection.wordIndex) : null;
     const annotation: BookAnnotation = {
       id: `annotation-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       chapterIndex: this.chapterIndex,
       quote: this.pendingSelection.quote,
       startOffset: this.pendingSelection.startOffset,
       endOffset: this.pendingSelection.endOffset,
+      wordIndex: anchor?.wordIndex,
+      exactText: anchor?.exactText,
+      prefix: anchor?.prefix,
+      suffix: anchor?.suffix,
       color: "yellow",
       comment: "",
       createdAt: now,
@@ -1414,21 +1420,19 @@ export class LeituraDSView extends ItemView {
   }
 
   private wrapAnnotationRange(article: HTMLElement, annotation: BookAnnotation): void {
-    const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT);
     const nodes: Array<{ node: Text; start: number; end: number }> = [];
     let offset = 0;
-    let text = walker.nextNode() as Text | null;
-    while (text) {
+    this.getReadableTextNodes(article).forEach((text) => {
       nodes.push({ node: text, start: offset, end: offset + text.data.length });
       offset += text.data.length;
-      text = walker.nextNode() as Text | null;
-    }
+    });
+    const resolved = this.resolveAnnotationOffsets(nodes.map((item) => item.node.data).join(""), annotation);
     nodes
-      .filter((item) => annotation.startOffset < item.end && annotation.endOffset > item.start)
+      .filter((item) => resolved.start < item.end && resolved.end > item.start)
       .reverse()
       .forEach((item) => {
-        const localStart = Math.max(0, annotation.startOffset - item.start);
-        const localEnd = Math.min(item.node.data.length, annotation.endOffset - item.start);
+        const localStart = Math.max(0, resolved.start - item.start);
+        const localEnd = Math.min(item.node.data.length, resolved.end - item.start);
         if (localEnd <= localStart) return;
         const range = document.createRange();
         range.setStart(item.node, localStart);
@@ -1440,6 +1444,26 @@ export class LeituraDSView extends ItemView {
         range.surroundContents(mark);
         mark.addEventListener("click", () => this.editAnnotation(annotation));
       });
+  }
+
+  private resolveAnnotationOffsets(text: string, annotation: BookAnnotation): { start: number; end: number } {
+    const normalize = (value: string): string => value.replace(/\s+/g, " ").trim();
+    const savedSlice = text.slice(annotation.startOffset, annotation.endOffset);
+    if (normalize(savedSlice) === normalize(annotation.quote)) return { start: annotation.startOffset, end: annotation.endOffset };
+    const exactOffset = text.indexOf(annotation.quote);
+    if (exactOffset >= 0) return { start: exactOffset, end: exactOffset + annotation.quote.length };
+    if (annotation.wordIndex === undefined || !annotation.exactText) return { start: annotation.startOffset, end: annotation.endOffset };
+    const matches = Array.from(text.matchAll(/\S+/g));
+    const words = matches.map((match) => match[0]);
+    const startWord = resolveTextAnchor(words, {
+      chapterIndex: annotation.chapterIndex, progress: 0, fastWordIndex: annotation.wordIndex,
+      exactText: annotation.exactText, prefix: annotation.prefix, suffix: annotation.suffix, updatedAt: annotation.updatedAt
+    }, annotation.wordIndex);
+    const quoteWords = annotation.quote.match(/\S+/g)?.length ?? 1;
+    const first = matches[startWord];
+    const last = matches[Math.min(matches.length - 1, startWord + quoteWords - 1)];
+    if (first?.index === undefined || last?.index === undefined) return { start: annotation.startOffset, end: annotation.endOffset };
+    return { start: first.index, end: last.index + last[0].length };
   }
 
   private editAnnotation(annotation: BookAnnotation): void {

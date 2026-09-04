@@ -58,6 +58,9 @@ O Leitura DS mantém livros, progresso, destaques e comentários no seu próprio
 - Imagens vizinhas de quadrinhos usam cache limitado e configurável.
 - Gravações simultâneas são agrupadas para reduzir trabalho no iPhone e Android.
 - Pontos de leitura, referências, marcadores, destaques e exclusões são reconciliados pelo arquivo de estado do Vault.
+- Estado sincronizado v2 com revisão, identificação local do dispositivo, migração com backup e novas tentativas para arquivos incompletos do iCloud.
+- Estatísticas usam contadores independentes por dispositivo, preservando os minutos de Mac, iPhone e Android sem duplicação.
+- Destaques também usam âncoras de texto e contexto, permanecendo ligados ao trecho após mudanças de layout.
 
 > CBR depende do suporte ao formato RAR disponível no ambiente do Obsidian. Para maior compatibilidade entre dispositivos, CBZ é o formato recomendado.
 

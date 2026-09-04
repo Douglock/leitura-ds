@@ -23,8 +23,12 @@ export default class LeituraDSPlugin extends Plugin {
   private lastSharedSaveAt = "";
   private sharedSavePromise: Promise<void> | null = null;
   private sharedSaveRequested = false;
+  private deviceId = "";
+  private sharedRevision = 0;
+  private syncConflicts = 0;
 
   async onload(): Promise<void> {
+    this.deviceId = this.getOrCreateDeviceId();
     const loaded = (await this.loadData()) as Partial<LeituraDSData> | null;
     // Import the previous Flow Reader data once so positions, annotations and
     // settings survive the product rename.
@@ -96,14 +100,18 @@ export default class LeituraDSPlugin extends Plugin {
   async recordReadingSeconds(bookId: string, seconds: number): Promise<void> {
     const safeSeconds = Math.round(Math.max(0, Math.min(seconds, 120)));
     if (!safeSeconds) return;
+    this.ensureDeviceReadingStats(this.readingStats);
     const today = this.localDateKey(new Date());
-    const day = this.readingStats.days[today] ?? { seconds: 0, books: [] };
+    const deviceDays = this.readingStats.deviceDays![this.deviceId] ??= {};
+    const day = deviceDays[today] ?? { seconds: 0, books: [] };
     day.seconds += safeSeconds;
     if (!day.books.includes(bookId)) day.books.push(bookId);
-    this.readingStats.days[today] = day;
-    this.readingStats.bookSeconds![bookId] = (this.readingStats.bookSeconds?.[bookId] ?? 0) + safeSeconds;
+    deviceDays[today] = day;
+    const deviceBooks = this.readingStats.deviceBookSeconds![this.deviceId] ??= {};
+    deviceBooks[bookId] = (deviceBooks[bookId] ?? 0) + safeSeconds;
     this.readingStats.lastReadAt = new Date().toISOString();
-    await this.saveData(this.data);
+    this.rebuildReadingStats(this.readingStats);
+    await this.saveSharedReadingState();
   }
 
   private localDateKey(date: Date): string {
@@ -115,12 +123,25 @@ export default class LeituraDSPlugin extends Plugin {
   get leituraSettings(): LeituraDSSettings { this.data.settings ??= { ...DEFAULT_SETTINGS }; return this.data.settings; }
   get comicRuntimeBaseUrl(): string { return this.app.vault.adapter.getResourcePath(`${this.manifest.dir ?? `.obsidian/plugins/${this.manifest.id}`}/assets/`); }
   get sharedSaveTime(): string { return this.lastSharedSaveAt; }
-  get syncDiagnostics(): { statePath: string; lastSavedAt: string; books: number; positions: number; highlights: number; backupFolder: string } {
+  get syncDiagnostics(): { statePath: string; lastSavedAt: string; books: number; positions: number; highlights: number; backupFolder: string; revision: number; deviceId: string; conflicts: number } {
     return {
       statePath: this.getSharedStatePath(), lastSavedAt: this.lastSharedSaveAt, books: Object.keys(this.data.books ?? {}).length,
       positions: Object.keys(this.data.positions).length, highlights: Object.values(this.data.annotations ?? {}).reduce((total, items) => total + items.length, 0),
-      backupFolder: this.getSharedBackupFolder()
+      backupFolder: this.getSharedBackupFolder(), revision: this.sharedRevision, deviceId: this.deviceId, conflicts: this.syncConflicts
     };
+  }
+
+  private getOrCreateDeviceId(): string {
+    const key = "leitura-ds:device-id";
+    try {
+      const existing = window.localStorage.getItem(key);
+      if (existing) return existing;
+      const created = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `device-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      window.localStorage.setItem(key, created);
+      return created;
+    } catch {
+      return `device-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    }
   }
 
   private async readLegacyPluginData(): Promise<Partial<LeituraDSData> | null> {
@@ -213,7 +234,10 @@ export default class LeituraDSPlugin extends Plugin {
     const ids = new Set([...Object.keys(this.data.positions), ...Object.keys(remote)]);
     const merged: Record<string, ReadingPosition> = {};
     ids.forEach((id) => {
-      const latest = this.newerPosition(this.data.positions[id], remote[id]);
+      const local = this.data.positions[id];
+      const incoming = remote[id];
+      if (local && incoming && local.updatedAt !== incoming.updatedAt && JSON.stringify(local) !== JSON.stringify(incoming)) this.syncConflicts += 1;
+      const latest = this.newerPosition(local, incoming);
       if (latest) merged[id] = latest;
     });
     this.data.positions = merged;
@@ -274,22 +298,81 @@ export default class LeituraDSPlugin extends Plugin {
     });
   }
 
-  private async readSharedReadingState(): Promise<LeituraDSSharedState | undefined> {
+  private mergeReadingStats(remote: ReadingStats | undefined): void {
+    if (!remote) return;
+    this.data.readingStats ??= { days: {}, bookSeconds: {} };
+    const local = this.data.readingStats;
+    this.ensureDeviceReadingStats(local);
+    this.ensureDeviceReadingStats(remote);
+    Object.entries(remote.deviceDays ?? {}).forEach(([deviceId, days]) => {
+      const target = local.deviceDays![deviceId] ??= {};
+      Object.entries(days).forEach(([date, incoming]) => {
+        const current = target[date];
+        target[date] = {
+          seconds: Math.max(current?.seconds ?? 0, incoming.seconds),
+          books: [...new Set([...(current?.books ?? []), ...incoming.books])]
+        };
+      });
+    });
+    Object.entries(remote.deviceBookSeconds ?? {}).forEach(([deviceId, books]) => {
+      const target = local.deviceBookSeconds![deviceId] ??= {};
+      Object.entries(books).forEach(([bookId, seconds]) => target[bookId] = Math.max(target[bookId] ?? 0, seconds));
+    });
+    if ((remote.lastReadAt ?? "") > (local.lastReadAt ?? "")) local.lastReadAt = remote.lastReadAt;
+    this.rebuildReadingStats(local);
+  }
+
+  private ensureDeviceReadingStats(stats: ReadingStats): void {
+    stats.deviceDays ??= {};
+    stats.deviceBookSeconds ??= {};
+    if (!Object.keys(stats.deviceDays).length && Object.keys(stats.days ?? {}).length) {
+      stats.deviceDays.legacy = Object.fromEntries(Object.entries(stats.days).map(([date, day]) => [date, { seconds: day.seconds, books: [...day.books] }]));
+    }
+    if (!Object.keys(stats.deviceBookSeconds).length && Object.keys(stats.bookSeconds ?? {}).length) {
+      stats.deviceBookSeconds.legacy = { ...stats.bookSeconds };
+    }
+  }
+
+  private rebuildReadingStats(stats: ReadingStats): void {
+    const days: Record<string, { seconds: number; books: string[] }> = {};
+    Object.values(stats.deviceDays ?? {}).forEach((deviceDays) => Object.entries(deviceDays).forEach(([date, day]) => {
+      const aggregate = days[date] ??= { seconds: 0, books: [] };
+      aggregate.seconds += day.seconds;
+      aggregate.books = [...new Set([...aggregate.books, ...day.books])];
+    }));
+    const bookSeconds: Record<string, number> = {};
+    Object.values(stats.deviceBookSeconds ?? {}).forEach((books) => Object.entries(books).forEach(([bookId, seconds]) => {
+      bookSeconds[bookId] = (bookSeconds[bookId] ?? 0) + seconds;
+    }));
+    stats.days = days;
+    stats.bookSeconds = bookSeconds;
+  }
+
+  private async readSharedReadingState(attempt = 0): Promise<LeituraDSSharedState | undefined> {
     const file = this.app.vault.getAbstractFileByPath(this.getSharedStatePath());
     if (!(file instanceof TFile)) return undefined;
     try {
       const parsed = JSON.parse(await this.app.vault.read(file)) as Partial<LeituraDSSharedState>;
       if (!parsed.positions || typeof parsed.positions !== "object") return undefined;
+      const isV2 = parsed.version === 2 || parsed.schemaVersion === 2;
       return {
-        version: 1, updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : "", positions: parsed.positions,
+        version: isV2 ? 2 : 1, schemaVersion: isV2 ? 2 : undefined,
+        revision: typeof parsed.revision === "number" ? parsed.revision : 0,
+        deviceId: typeof parsed.deviceId === "string" ? parsed.deviceId : undefined,
+        updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : "", positions: parsed.positions,
         annotations: parsed.annotations && typeof parsed.annotations === "object" ? parsed.annotations : {},
         books: parsed.books && typeof parsed.books === "object" ? parsed.books : {},
         annotationTombstones: parsed.annotationTombstones && typeof parsed.annotationTombstones === "object" ? parsed.annotationTombstones : {},
         markers: parsed.markers && typeof parsed.markers === "object" ? parsed.markers : {},
         markerTombstones: parsed.markerTombstones && typeof parsed.markerTombstones === "object" ? parsed.markerTombstones : {},
-        referencePoints: parsed.referencePoints && typeof parsed.referencePoints === "object" ? parsed.referencePoints : {}
+        referencePoints: parsed.referencePoints && typeof parsed.referencePoints === "object" ? parsed.referencePoints : {},
+        statistics: parsed.statistics && typeof parsed.statistics === "object" ? parsed.statistics : undefined
       };
     } catch {
+      if (attempt < 2) {
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 250 * (attempt + 1)));
+        return this.readSharedReadingState(attempt + 1);
+      }
       new Notice("Leitura DS: não foi possível ler o estado sincronizado.");
       return undefined;
     }
@@ -298,13 +381,19 @@ export default class LeituraDSPlugin extends Plugin {
   private async loadSharedReadingState(): Promise<void> {
     const remote = await this.readSharedReadingState();
     if (!remote) return;
+    const requiresMigration = remote.version < 2;
+    if (requiresMigration) await this.createSharedStateBackup();
     this.lastSharedSaveAt = remote.updatedAt;
+    this.sharedRevision = Math.max(this.sharedRevision, remote.revision ?? 0);
+    this.syncConflicts = 0;
     this.mergePositions(remote.positions);
     this.mergeBooks(remote.books);
     this.mergeAnnotations(remote.annotations, remote.annotationTombstones);
     this.mergeMarkers(remote.markers ?? {}, remote.markerTombstones ?? {});
     this.mergeReferencePoints(remote.referencePoints ?? {});
+    this.mergeReadingStats(remote.statistics);
     await this.saveData(this.data);
+    if (requiresMigration) await this.saveSharedReadingState();
   }
 
   private async saveSharedReadingState(): Promise<void> {
@@ -331,16 +420,20 @@ export default class LeituraDSPlugin extends Plugin {
       const existing = this.app.vault.getAbstractFileByPath(path);
       const remote = await this.readSharedReadingState();
       if (remote) {
+        this.sharedRevision = Math.max(this.sharedRevision, remote.revision ?? 0);
         this.mergePositions(remote.positions);
         this.mergeBooks(remote.books);
         this.mergeAnnotations(remote.annotations, remote.annotationTombstones);
         this.mergeMarkers(remote.markers ?? {}, remote.markerTombstones ?? {});
         this.mergeReferencePoints(remote.referencePoints ?? {});
+        this.mergeReadingStats(remote.statistics);
       }
       const state: LeituraDSSharedState = {
-        version: 1, updatedAt: new Date().toISOString(), positions: this.data.positions,
+        version: 2, schemaVersion: 2, revision: this.sharedRevision + 1, deviceId: this.deviceId,
+        updatedAt: new Date().toISOString(), positions: this.data.positions,
         annotations: this.data.annotations ?? {}, books: this.data.books ?? {}, annotationTombstones: this.data.annotationTombstones ?? {},
-        markers: this.data.markers ?? {}, markerTombstones: this.data.markerTombstones ?? {}, referencePoints: this.data.referencePoints ?? {}
+        markers: this.data.markers ?? {}, markerTombstones: this.data.markerTombstones ?? {}, referencePoints: this.data.referencePoints ?? {},
+        statistics: this.readingStats
       };
       const content = JSON.stringify(state, null, 2);
       this.writingSharedState = true;
@@ -350,6 +443,7 @@ export default class LeituraDSPlugin extends Plugin {
       }
       else await this.app.vault.create(path, content);
       this.lastSharedSaveAt = state.updatedAt;
+      this.sharedRevision = state.revision ?? this.sharedRevision;
     } finally {
       this.writingSharedState = false;
       await this.saveData(this.data);

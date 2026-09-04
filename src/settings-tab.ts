@@ -34,8 +34,9 @@ export class LeituraDSSettingTab extends PluginSettingTab {
     containerEl.createEl("h3", { text: "Sincronização e segurança" });
     const diagnostics = this.plugin.syncDiagnostics;
     const lastSave = diagnostics.lastSavedAt ? new Date(diagnostics.lastSavedAt).toLocaleString("pt-BR") : "ainda não salvo";
-    new Setting(containerEl).setName("Estado sincronizado").setDesc(`${diagnostics.positions} pontos de leitura · ${diagnostics.highlights} destaques · última atualização: ${lastSave}.`)
+    new Setting(containerEl).setName("Estado sincronizado").setDesc(`${diagnostics.positions} pontos de leitura · ${diagnostics.highlights} destaques · revisão ${diagnostics.revision} · última atualização: ${lastSave}.`)
       .addButton((button) => button.setButtonText("Abrir arquivo").onClick(() => void this.plugin.openSharedStateFile()));
+    new Setting(containerEl).setName("Diagnóstico deste dispositivo").setDesc(`ID ${diagnostics.deviceId.slice(0, 12)}… · ${diagnostics.conflicts} conflitos de posição reconciliados na última leitura do estado.`);
     new Setting(containerEl).setName("Cópia de segurança automática").setDesc(`Guarda uma cópia por dia antes de atualizar o estado. Local: ${diagnostics.backupFolder}`)
       .addToggle((toggle) => toggle.setValue(settings.automaticBackups).onChange(async (value) => { settings.automaticBackups = value; await this.plugin.saveSettings(); }));
     new Setting(containerEl).setName("Criar backup agora").setDesc("Cria uma cópia manual da posição, destaques e comentários sincronizados.")

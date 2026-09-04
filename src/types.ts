@@ -105,6 +105,10 @@ export interface BookAnnotation {
   quote: string;
   startOffset: number;
   endOffset: number;
+  wordIndex?: number;
+  exactText?: string;
+  prefix?: string;
+  suffix?: string;
   color: HighlightColor;
   comment: string;
   tags?: string[];
@@ -132,11 +136,16 @@ export interface ReadingDayStats {
 export interface ReadingStats {
   days: Record<string, ReadingDayStats>;
   bookSeconds?: Record<string, number>;
+  deviceDays?: Record<string, Record<string, ReadingDayStats>>;
+  deviceBookSeconds?: Record<string, Record<string, number>>;
   lastReadAt?: string;
 }
 
 export interface LeituraDSSharedState {
-  version: 1;
+  version: 1 | 2;
+  schemaVersion?: 2;
+  revision?: number;
+  deviceId?: string;
   updatedAt: string;
   positions: Record<string, ReadingPosition>;
   annotations: Record<string, BookAnnotation[]>;
@@ -145,6 +154,7 @@ export interface LeituraDSSharedState {
   markers?: Record<string, BookMarker[]>;
   markerTombstones?: Record<string, string>;
   referencePoints?: Record<string, ReadingPosition>;
+  statistics?: ReadingStats;
 }
 
 export interface LeituraDSSettings {
