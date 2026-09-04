@@ -1,10 +1,31 @@
-import { ItemView, Notice, WorkspaceLeaf } from "obsidian";
+import { App, ItemView, Modal, Notice, WorkspaceLeaf } from "obsidian";
 import type LeituraDSPlugin from "./main";
 import { AnnotationModal } from "./annotation-modal";
+import type { BookAnnotation } from "./types";
 
 export const LEITURA_DS_HIGHLIGHTS_VIEW = "leitura-ds-highlights";
 
+class BulkTagsModal extends Modal {
+  constructor(app: App, private readonly count: number, private readonly onSave: (tags: string[]) => void) { super(app); }
+  onOpen(): void {
+    this.titleEl.setText("Adicionar etiquetas");
+    this.contentEl.createEl("p", { text: `As etiquetas serão adicionadas a ${this.count} ${this.count === 1 ? "destaque" : "destaques"}.` });
+    const input = this.contentEl.createEl("input", { attr: { placeholder: "ideia, revisar, importante", "aria-label": "Etiquetas para adicionar" } });
+    const actions = this.contentEl.createDiv({ cls: "leitura-ds__annotation-actions" });
+    actions.createEl("button", { text: "Cancelar" }).addEventListener("click", () => this.close());
+    actions.createEl("button", { text: "Adicionar", cls: "mod-cta" }).addEventListener("click", () => {
+      const tags = [...new Set(input.value.split(",").map((tag) => tag.trim().replace(/^#/, "")).filter(Boolean))];
+      if (!tags.length) return;
+      this.close();
+      this.onSave(tags);
+    });
+    window.setTimeout(() => input.focus(), 0);
+  }
+  onClose(): void { this.contentEl.empty(); }
+}
+
 export class LeituraDSHighlightsView extends ItemView {
+  private readonly selected = new Set<string>();
   constructor(leaf: WorkspaceLeaf, private readonly plugin: LeituraDSPlugin) { super(leaf); }
   getViewType(): string { return LEITURA_DS_HIGHLIGHTS_VIEW; }
   getDisplayText(): string { return "Meus destaques"; }
@@ -31,8 +52,16 @@ export class LeituraDSHighlightsView extends ItemView {
     const dateFilter = headerActions.createEl("select", { attr: { "aria-label": "Filtrar por período" } });
     [["", "Qualquer data"], ["today", "Hoje"], ["week", "Últimos 7 dias"], ["month", "Últimos 30 dias"]].forEach(([value, text]) => dateFilter.createEl("option", { value, text }));
     const commentsOnly = headerActions.createEl("button", { text: "Com comentário", attr: { "aria-pressed": "false" } });
+    const sort = headerActions.createEl("select", { attr: { "aria-label": "Ordenar destaques" } });
+    [["newest", "Mais recentes"], ["oldest", "Mais antigos"], ["book", "Por livro"]].forEach(([value, text]) => sort.createEl("option", { value, text }));
     const exportButton = headerActions.createEl("button", { text: "Exportar para Markdown", attr: { "aria-label": "Exportar todos os destaques para Markdown" } });
     exportButton.addEventListener("click", () => void this.plugin.exportAllHighlights(true));
+    const bulk = root.createDiv({ cls: "flow-highlights__bulk is-hidden" });
+    const bulkCount = bulk.createSpan({ text: "0 selecionados" });
+    const copySelected = bulk.createEl("button", { text: "Copiar selecionados" });
+    const exportSelected = bulk.createEl("button", { text: "Exportar selecionados" });
+    const tagSelected = bulk.createEl("button", { text: "Adicionar etiquetas" });
+    const clearSelected = bulk.createEl("button", { text: "Limpar seleção" });
     const list = root.createDiv({ cls: "flow-highlights__list" });
     const entries = this.plugin.getAllAnnotations().sort((a, b) => b.annotation.updatedAt.localeCompare(a.annotation.updatedAt));
     [...new Map(entries.map((entry) => [entry.bookId, entry.book?.title ?? "Livro"]))].sort((left, right) => left[1].localeCompare(right[1], "pt-BR")).forEach(([id, title]) => bookFilter.createEl("option", { text: title, value: id }));
@@ -46,7 +75,17 @@ export class LeituraDSHighlightsView extends ItemView {
       card.dataset.comment = annotation.comment ? "true" : "false";
       card.dataset.tags = (annotation.tags ?? []).join("|");
       card.dataset.updated = annotation.updatedAt;
+      card.dataset.author = (book?.author ?? "").toLocaleLowerCase("pt-BR");
       const top = card.createDiv({ cls: "flow-highlights__top" });
+      const select = top.createEl("input", { type: "checkbox", attr: { "aria-label": "Selecionar destaque" } });
+      const selectionKey = `${bookId}:${annotation.id}`;
+      select.checked = this.selected.has(selectionKey);
+      select.addEventListener("click", (event) => event.stopPropagation());
+      select.addEventListener("change", () => {
+        if (select.checked) this.selected.add(selectionKey); else this.selected.delete(selectionKey);
+        card.toggleClass("is-selected", select.checked);
+        updateBulk();
+      });
       top.createSpan({ cls: "flow-highlights__book", text: book?.title ?? "Livro" });
       top.createSpan({ cls: "flow-highlights__chapter", text: `Capítulo ${annotation.chapterIndex + 1}` });
       card.createEl("blockquote", { text: annotation.quote });
@@ -74,6 +113,23 @@ export class LeituraDSHighlightsView extends ItemView {
       card.addEventListener("click", () => void this.plugin.openBookById(bookId, annotation.chapterIndex, annotation.id));
       card.addEventListener("keydown", (event) => { if (event.key === "Enter") void this.plugin.openBookById(bookId, annotation.chapterIndex, annotation.id); });
     });
+    const selectedEntries = (): Array<{ bookId: string; annotation: BookAnnotation }> => entries
+      .filter(({ bookId, annotation }) => this.selected.has(`${bookId}:${annotation.id}`))
+      .map(({ bookId, annotation }) => ({ bookId, annotation }));
+    const updateBulk = (): void => {
+      bulkCount.textContent = `${this.selected.size} ${this.selected.size === 1 ? "selecionado" : "selecionados"}`;
+      bulk.toggleClass("is-hidden", !this.selected.size);
+    };
+    copySelected.addEventListener("click", () => {
+      const text = selectedEntries().map(({ annotation }) => annotation.comment ? `“${annotation.quote}”\n\n${annotation.comment}` : `“${annotation.quote}”`).join("\n\n---\n\n");
+      void navigator.clipboard.writeText(text).then(() => new Notice(`${this.selected.size} destaques copiados.`)).catch(() => new Notice("Não foi possível copiar os destaques."));
+    });
+    exportSelected.addEventListener("click", () => void this.plugin.exportSelectedHighlights(selectedEntries()));
+    tagSelected.addEventListener("click", () => new BulkTagsModal(this.app, this.selected.size, (tags) => {
+      void this.plugin.addTagsToAnnotations(selectedEntries(), tags).then(() => { this.selected.clear(); this.renderHighlights(); });
+    }).open());
+    clearSelected.addEventListener("click", () => { this.selected.clear(); this.renderHighlights(); });
+    updateBulk();
     let onlyComments = false;
     const filter = (): void => {
       const term = search.value.trim().toLocaleLowerCase("pt-BR");
@@ -84,12 +140,20 @@ export class LeituraDSHighlightsView extends ItemView {
         const hidden = (Boolean(term) && !(card.dataset.search ?? "").includes(term)) || (Boolean(bookFilter.value) && card.dataset.book !== bookFilter.value) || (Boolean(colorFilter.value) && card.dataset.color !== colorFilter.value) || (Boolean(tagFilter.value) && !(card.dataset.tags ?? "").split("|").includes(tagFilter.value)) || isTooOld || (onlyComments && card.dataset.comment !== "true");
         card.toggleClass("is-filtered", hidden);
       });
+      const cards = [...list.querySelectorAll<HTMLElement>(".flow-highlights__card")];
+      cards.sort((left, right) => sort.value === "oldest"
+        ? (left.dataset.updated ?? "").localeCompare(right.dataset.updated ?? "")
+        : sort.value === "book"
+          ? (left.dataset.search ?? "").localeCompare(right.dataset.search ?? "", "pt-BR")
+          : (right.dataset.updated ?? "").localeCompare(left.dataset.updated ?? ""));
+      cards.forEach((card) => list.appendChild(card));
     };
     search.addEventListener("input", filter);
     bookFilter.addEventListener("change", filter);
     colorFilter.addEventListener("change", filter);
     tagFilter.addEventListener("change", filter);
     dateFilter.addEventListener("change", filter);
+    sort.addEventListener("change", filter);
     commentsOnly.addEventListener("click", () => { onlyComments = !onlyComments; commentsOnly.toggleClass("is-active", onlyComments); commentsOnly.setAttribute("aria-pressed", String(onlyComments)); filter(); });
   }
 }

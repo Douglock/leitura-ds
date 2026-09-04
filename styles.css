@@ -930,18 +930,23 @@
 .flow-comic__error { max-width: 480px; padding: 20px; border: 1px solid var(--background-modifier-border); border-radius: 12px; color: var(--text-muted); text-align: center; }
 
 .flow-highlights__list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 310px), 1fr)); gap: 16px; max-width: 1200px; margin: 0 auto; padding-bottom: 60px; }
+.flow-highlights__bulk { position: sticky; top: 8px; z-index: 5; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; width: fit-content; margin: 0 auto 16px; padding: 8px 12px; border: 1px solid var(--background-modifier-border); border-radius: 14px; background: var(--background-primary-alt); box-shadow: var(--shadow-s); }
+.flow-highlights__bulk.is-hidden { display: none; }
+.flow-highlights__bulk span { margin-right: 4px; color: var(--text-muted); font-size: 12px; }
 .flow-highlights__header-actions { display: flex; align-items: center; gap: 10px; }
 .flow-highlights__header-actions button { white-space: nowrap; }
 .flow-library__header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .flow-library__header-actions select { min-width: 130px; }
 .flow-highlights__card { display: block; height: auto; padding: 18px; border: 1px solid var(--background-modifier-border); border-left: 5px solid var(--highlight-color); border-radius: 14px; background: var(--background-secondary); text-align: left; white-space: normal; }
 .flow-highlights__card:hover { transform: translateY(-2px); border-color: var(--highlight-color); }
+.flow-highlights__card.is-selected { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
 .flow-highlights__card--yellow { --highlight-color: #f6c945; }
 .flow-highlights__card--blue { --highlight-color: #4aa3ff; }
 .flow-highlights__card--red { --highlight-color: #ff5b64; }
 .flow-highlights__card--purple { --highlight-color: #a978ff; }
 .flow-highlights__card--green { --highlight-color: #44ca82; }
-.flow-highlights__top { display: flex; justify-content: space-between; gap: 12px; color: var(--text-muted); font-size: 12px; }
+.flow-highlights__top { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--text-muted); font-size: 12px; }
+.flow-highlights__top input { flex: 0 0 auto; margin: 0; }
 .flow-highlights__book { overflow: hidden; font-weight: 650; color: var(--text-normal); text-overflow: ellipsis; white-space: nowrap; }
 .flow-highlights__card blockquote { margin: 16px 0 10px; padding: 0; border: 0; color: var(--text-normal); font-family: var(--font-text); font-size: 16px; line-height: 1.55; }
 .flow-highlights__comment { padding-top: 12px; border-top: 1px solid var(--background-modifier-border); color: var(--text-muted); font-size: 13px; }

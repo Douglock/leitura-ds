@@ -27,6 +27,7 @@ O Leitura DS mantém livros, progresso, destaques e comentários no seu próprio
 - Leitura de EPUB com sumário clicável e retomada no ponto exato.
 - Progresso do livro ou capítulo, tempo restante estimado e marcadores.
 - Destaques coloridos, comentários, etiquetas e exportação para notas Markdown.
+- Seleção múltipla de destaques para copiar, adicionar etiquetas ou exportar uma nota com links de retorno.
 - Biblioteca visual com capas, busca e página de todos os destaques.
 - Temas, fontes, espaçamento, largura do texto, duas colunas e tela cheia.
 - Estado compartilhado no Vault: posição e palavra em destaque continuam em outros dispositivos.

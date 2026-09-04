@@ -533,6 +533,22 @@ export default class LeituraDSPlugin extends Plugin {
     if (this.leituraSettings.autoExportHighlights) await this.exportBookHighlights(bookId);
   }
 
+  async addTagsToAnnotations(entries: Array<{ bookId: string; annotation: BookAnnotation }>, tags: string[]): Promise<void> {
+    const changedBooks = new Set<string>();
+    const updatedAt = new Date().toISOString();
+    entries.forEach(({ bookId, annotation }) => {
+      const stored = this.data.annotations?.[bookId]?.find((item) => item.id === annotation.id);
+      if (!stored) return;
+      stored.tags = [...new Set([...(stored.tags ?? []), ...tags])];
+      stored.updatedAt = updatedAt;
+      changedBooks.add(bookId);
+    });
+    if (!changedBooks.size) return;
+    await this.saveSharedReadingState();
+    if (this.leituraSettings.autoExportHighlights) await Promise.all([...changedBooks].map((bookId) => this.exportBookHighlights(bookId)));
+    new Notice(`Etiquetas adicionadas a ${entries.length} ${entries.length === 1 ? "destaque" : "destaques"}.`);
+  }
+
   async exportAllHighlights(showNotice = false): Promise<void> {
     const bookIds = Object.keys(this.data.annotations ?? {});
     const files = (await Promise.all(bookIds.map((bookId) => this.exportBookHighlights(bookId)))).filter((file): file is TFile => Boolean(file));
@@ -542,6 +558,40 @@ export default class LeituraDSPlugin extends Plugin {
         new Notice(`Nota atualizada e aberta: ${files[0].path}`);
       } else new Notice("Nenhuma nota de destaques para exportar.");
     }
+  }
+
+  async exportSelectedHighlights(entries: Array<{ bookId: string; annotation: BookAnnotation }>): Promise<void> {
+    if (!entries.length) return;
+    const folder = normalizePath(this.leituraSettings.exportFolder.trim() || DEFAULT_SETTINGS.exportFolder);
+    await this.ensureFolder(folder);
+    const createdAt = new Date();
+    const stamp = `${this.localDateKey(createdAt)}-${String(createdAt.getHours()).padStart(2, "0")}${String(createdAt.getMinutes()).padStart(2, "0")}${String(createdAt.getSeconds()).padStart(2, "0")}`;
+    let path = normalizePath(`${folder}/Destaques selecionados — ${stamp}.md`);
+    let collision = 2;
+    while (this.app.vault.getAbstractFileByPath(path)) path = normalizePath(`${folder}/Destaques selecionados — ${stamp} (${collision++}).md`);
+    const lines = ["---", `created: ${createdAt.toISOString()}`, "tags:", "  - leitura-ds", "  - destaque", "---", "", "# Destaques selecionados", ""];
+    const ordered = [...entries].sort((left, right) => {
+      const leftBook = this.data.books?.[left.bookId]?.title ?? "Livro";
+      const rightBook = this.data.books?.[right.bookId]?.title ?? "Livro";
+      return leftBook.localeCompare(rightBook, "pt-BR") || left.annotation.chapterIndex - right.annotation.chapterIndex || left.annotation.startOffset - right.annotation.startOffset;
+    });
+    let currentBook = "";
+    ordered.forEach(({ bookId, annotation }) => {
+      const book = this.data.books?.[bookId];
+      if (bookId !== currentBook) {
+        currentBook = bookId;
+        lines.push(`## ${book?.title ?? "Livro"}`, "", `**Autor:** ${book?.author ?? "Autor desconhecido"}`, "");
+      }
+      const link = `obsidian://leitura-ds?book=${encodeURIComponent(bookId)}&chapter=${annotation.chapterIndex}&annotation=${encodeURIComponent(annotation.id)}`;
+      lines.push(`> [!quote] ${book?.chapters?.[annotation.chapterIndex] ?? `Capítulo ${annotation.chapterIndex + 1}`} · ${this.colorName(annotation.color)}`);
+      annotation.quote.split(/\r?\n/).forEach((part) => lines.push(`> ${part}`));
+      if (annotation.comment) lines.push(">", `> **Comentário:** ${annotation.comment.replace(/\n/g, " ")}`);
+      if (annotation.tags?.length) lines.push(">", `> **Etiquetas:** ${annotation.tags.map((tag) => `#${tag.replace(/\s+/g, "-")}`).join(" ")}`);
+      lines.push(">", `> [Abrir no Leitura DS](${link})`, "");
+    });
+    const file = await this.app.vault.create(path, lines.join("\n"));
+    await this.openMarkdownFile(file);
+    new Notice(`Exportados ${entries.length} ${entries.length === 1 ? "destaque" : "destaques"}.`);
   }
 
   private async exportBookHighlights(bookId: string): Promise<TFile | undefined> {
