@@ -63,6 +63,12 @@ export interface ReadingPosition {
   focusWordsPerMinute?: number;
   colorFlow?: boolean;
   twoColumn?: boolean;
+  socialMode?: SocialReadingMode;
+  comicScrollTop?: number;
+  comicZoom?: number;
+  comicFitMode?: "page" | "width" | "original";
+  comicSpreadMode?: boolean;
+  comicReadingDirection?: "ltr" | "rtl";
   updatedAt: string;
 }
 
@@ -109,6 +115,7 @@ export interface LeituraDSData {
   annotations?: Record<string, BookAnnotation[]>;
   books?: Record<string, BookRecord>;
   markers?: Record<string, BookMarker[]>;
+  markerTombstones?: Record<string, string>;
   annotationTombstones?: Record<string, string>;
   readingStats?: ReadingStats;
   settings?: LeituraDSSettings;
@@ -121,6 +128,7 @@ export interface ReadingDayStats {
 
 export interface ReadingStats {
   days: Record<string, ReadingDayStats>;
+  bookSeconds?: Record<string, number>;
   lastReadAt?: string;
 }
 
@@ -131,6 +139,9 @@ export interface LeituraDSSharedState {
   annotations: Record<string, BookAnnotation[]>;
   books: Record<string, BookRecord>;
   annotationTombstones: Record<string, string>;
+  markers?: Record<string, BookMarker[]>;
+  markerTombstones?: Record<string, string>;
+  referencePoints?: Record<string, ReadingPosition>;
 }
 
 export interface LeituraDSSettings {
@@ -148,4 +159,12 @@ export interface LeituraDSSettings {
   dailyGoalMinutes: number;
   voiceRate: number;
   defaultSocialMode: SocialReadingMode;
+  socialFontSize: number;
+  socialCardCharacters: number;
+  threadCharacters: number;
+  autoExportHighlights: boolean;
+  defaultComicFitMode: "page" | "width" | "original";
+  defaultComicSpreadMode: boolean;
+  defaultComicReadingDirection: "ltr" | "rtl";
+  preloadComicPages: boolean;
 }

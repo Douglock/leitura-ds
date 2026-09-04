@@ -11,22 +11,36 @@ import { LeituraDSSettingTab } from "./settings-tab";
 const DEFAULT_SETTINGS: LeituraDSSettings = {
   baseFolder: "99 - SISTEMAS/Leitura DS", libraryFolder: "", exportFolder: "99 - SISTEMAS/Leitura DS/Destaques",
   defaultTheme: "default", defaultFontSize: 18, defaultFocusColor: "#ff4d55",
-  fastWordsPerMinute: 300, fastFontSize: 56, focusWordsPerMinute: 240, automaticBackups: true, swipeNavigation: true, dailyGoalMinutes: 20, voiceRate: 1, defaultSocialMode: "normal"
+  fastWordsPerMinute: 300, fastFontSize: 56, focusWordsPerMinute: 240, automaticBackups: true, swipeNavigation: true, dailyGoalMinutes: 20, voiceRate: 1, defaultSocialMode: "normal",
+  socialFontSize: 26, socialCardCharacters: 140, threadCharacters: 320, autoExportHighlights: true,
+  defaultComicFitMode: "page", defaultComicSpreadMode: false, defaultComicReadingDirection: "ltr", preloadComicPages: true
 };
-const DEFAULT_DATA: LeituraDSData = { positions: {}, referencePoints: {}, annotations: {}, books: {}, markers: {}, annotationTombstones: {}, readingStats: { days: {} }, settings: DEFAULT_SETTINGS };
+const DEFAULT_DATA: LeituraDSData = { positions: {}, referencePoints: {}, annotations: {}, books: {}, markers: {}, markerTombstones: {}, annotationTombstones: {}, readingStats: { days: {}, bookSeconds: {} }, settings: DEFAULT_SETTINGS };
 
 export default class LeituraDSPlugin extends Plugin {
   private data: LeituraDSData = DEFAULT_DATA;
   private writingSharedState = false;
   private lastSharedSaveAt = "";
+  private sharedSavePromise: Promise<void> | null = null;
+  private sharedSaveRequested = false;
 
   async onload(): Promise<void> {
     const loaded = (await this.loadData()) as Partial<LeituraDSData> | null;
     // Import the previous Flow Reader data once so positions, annotations and
-    // prior data file once so positions, annotations and settings survive it.
+    // settings survive the product rename.
     const migrated = loaded ?? await this.readLegacyPluginData();
-    this.data = { ...DEFAULT_DATA, ...migrated, settings: { ...DEFAULT_SETTINGS, ...(migrated?.settings ?? {}) } };
-    if (!loaded && migrated) await this.saveData(this.data);
+    const settings = { ...DEFAULT_SETTINGS, ...(migrated?.settings ?? {}) };
+    const previousBaseFolder = settings.baseFolder;
+    const renamedBaseFolder = this.renameLegacyFolderPath(previousBaseFolder);
+    let settingsMigrated = false;
+    if (renamedBaseFolder !== previousBaseFolder && await this.moveLegacyBaseFolder(previousBaseFolder, renamedBaseFolder)) {
+      settings.baseFolder = renamedBaseFolder;
+      settings.exportFolder = this.renameLegacyFolderPath(settings.exportFolder);
+      if (settings.libraryFolder) settings.libraryFolder = this.renameLegacyFolderPath(settings.libraryFolder);
+      settingsMigrated = true;
+    }
+    this.data = { ...DEFAULT_DATA, ...migrated, settings };
+    if ((!loaded && migrated) || settingsMigrated) await this.saveData(this.data);
     await this.loadSharedReadingState();
     this.addSettingTab(new LeituraDSSettingTab(this.app, this));
     this.registerView(LEITURA_DS_VIEW, (leaf) => new LeituraDSView(leaf, this));
@@ -55,7 +69,6 @@ export default class LeituraDSPlugin extends Plugin {
     this.registerEvent(this.app.vault.on("modify", (file) => {
       if (!this.writingSharedState && file.path === this.getSharedStatePath()) void this.loadSharedReadingState();
     }));
-    void this.exportAllHighlights();
   }
 
   onunload(): void {
@@ -70,21 +83,33 @@ export default class LeituraDSPlugin extends Plugin {
     return this.data.books?.[bookId];
   }
 
+  getBookRecordByPath(path: string): BookRecord | undefined {
+    return Object.values(this.data.books ?? {}).find((book) => book.path === path);
+  }
+
   get readingStats(): ReadingStats {
-    this.data.readingStats ??= { days: {} };
+    this.data.readingStats ??= { days: {}, bookSeconds: {} };
+    this.data.readingStats.bookSeconds ??= {};
     return this.data.readingStats;
   }
 
   async recordReadingSeconds(bookId: string, seconds: number): Promise<void> {
     const safeSeconds = Math.round(Math.max(0, Math.min(seconds, 120)));
     if (!safeSeconds) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = this.localDateKey(new Date());
     const day = this.readingStats.days[today] ?? { seconds: 0, books: [] };
     day.seconds += safeSeconds;
     if (!day.books.includes(bookId)) day.books.push(bookId);
     this.readingStats.days[today] = day;
+    this.readingStats.bookSeconds![bookId] = (this.readingStats.bookSeconds?.[bookId] ?? 0) + safeSeconds;
     this.readingStats.lastReadAt = new Date().toISOString();
     await this.saveData(this.data);
+  }
+
+  private localDateKey(date: Date): string {
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${date.getFullYear()}-${month}-${day}`;
   }
 
   get leituraSettings(): LeituraDSSettings { this.data.settings ??= { ...DEFAULT_SETTINGS }; return this.data.settings; }
@@ -108,13 +133,31 @@ export default class LeituraDSPlugin extends Plugin {
       return null;
     }
   }
+
+  private renameLegacyFolderPath(path: string): string {
+    return normalizePath(path.split("/").map((part) => part === "Flow Reader" ? "Leitura DS" : part).join("/"));
+  }
+
+  private async moveLegacyBaseFolder(previousPath: string, nextPath: string): Promise<boolean> {
+    const previous = this.app.vault.getAbstractFileByPath(normalizePath(previousPath));
+    const next = this.app.vault.getAbstractFileByPath(normalizePath(nextPath));
+    if (next instanceof TFolder) return true;
+    if (!(previous instanceof TFolder)) return false;
+    try {
+      await this.app.fileManager.renameFile(previous, normalizePath(nextPath));
+      new Notice(`Pasta do Leitura DS movida para ${nextPath}.`);
+      return true;
+    } catch (error) {
+      console.warn("Leitura DS could not rename the legacy data folder", error);
+      return false;
+    }
+  }
   async saveSettings(): Promise<void> { await this.saveData(this.data); }
   async resetSettings(): Promise<void> { this.data.settings = { ...DEFAULT_SETTINGS }; await this.saveData(this.data); }
   getVaultFolders(): string[] { return this.app.vault.getAllLoadedFiles().filter((file): file is TFolder => file instanceof TFolder).map((folder) => folder.path).sort(); }
 
   async setPosition(bookId: string, position: ReadingPosition): Promise<void> {
     this.data.positions[bookId] = position;
-    await this.saveData(this.data);
     await this.saveSharedReadingState();
   }
 
@@ -202,6 +245,35 @@ export default class LeituraDSPlugin extends Plugin {
     Object.entries(remote).forEach(([id, book]) => { if (!this.data.books?.[id]) this.data.books![id] = book; });
   }
 
+  private mergeReferencePoints(remote: Record<string, ReadingPosition>): void {
+    this.data.referencePoints ??= {};
+    const ids = new Set([...Object.keys(this.data.referencePoints), ...Object.keys(remote)]);
+    const merged: Record<string, ReadingPosition> = {};
+    ids.forEach((id) => {
+      const latest = this.newerPosition(this.data.referencePoints?.[id], remote[id]);
+      if (latest) merged[id] = latest;
+    });
+    this.data.referencePoints = merged;
+  }
+
+  private mergeMarkers(remote: Record<string, BookMarker[]>, remoteTombstones: Record<string, string>): void {
+    this.data.markers ??= {};
+    this.data.markerTombstones ??= {};
+    Object.entries(remoteTombstones).forEach(([key, deletedAt]) => {
+      const local = this.data.markerTombstones?.[key];
+      if (!local || new Date(deletedAt).getTime() > new Date(local).getTime()) this.data.markerTombstones![key] = deletedAt;
+    });
+    const bookIds = new Set([...Object.keys(this.data.markers), ...Object.keys(remote)]);
+    bookIds.forEach((bookId) => {
+      const byId = new Map<string, BookMarker>();
+      [...(this.data.markers?.[bookId] ?? []), ...(remote[bookId] ?? [])].forEach((marker) => byId.set(marker.id, marker));
+      this.data.markers![bookId] = [...byId.values()].filter((marker) => {
+        const deletedAt = this.data.markerTombstones?.[`${bookId}:${marker.id}`];
+        return !deletedAt || new Date(marker.createdAt).getTime() > new Date(deletedAt).getTime();
+      });
+    });
+  }
+
   private async readSharedReadingState(): Promise<LeituraDSSharedState | undefined> {
     const file = this.app.vault.getAbstractFileByPath(this.getSharedStatePath());
     if (!(file instanceof TFile)) return undefined;
@@ -212,7 +284,10 @@ export default class LeituraDSPlugin extends Plugin {
         version: 1, updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : "", positions: parsed.positions,
         annotations: parsed.annotations && typeof parsed.annotations === "object" ? parsed.annotations : {},
         books: parsed.books && typeof parsed.books === "object" ? parsed.books : {},
-        annotationTombstones: parsed.annotationTombstones && typeof parsed.annotationTombstones === "object" ? parsed.annotationTombstones : {}
+        annotationTombstones: parsed.annotationTombstones && typeof parsed.annotationTombstones === "object" ? parsed.annotationTombstones : {},
+        markers: parsed.markers && typeof parsed.markers === "object" ? parsed.markers : {},
+        markerTombstones: parsed.markerTombstones && typeof parsed.markerTombstones === "object" ? parsed.markerTombstones : {},
+        referencePoints: parsed.referencePoints && typeof parsed.referencePoints === "object" ? parsed.referencePoints : {}
       };
     } catch {
       new Notice("Leitura DS: não foi possível ler o estado sincronizado.");
@@ -227,27 +302,48 @@ export default class LeituraDSPlugin extends Plugin {
     this.mergePositions(remote.positions);
     this.mergeBooks(remote.books);
     this.mergeAnnotations(remote.annotations, remote.annotationTombstones);
+    this.mergeMarkers(remote.markers ?? {}, remote.markerTombstones ?? {});
+    this.mergeReferencePoints(remote.referencePoints ?? {});
     await this.saveData(this.data);
   }
 
   private async saveSharedReadingState(): Promise<void> {
-    const folder = normalizePath(this.leituraSettings.baseFolder.trim() || "Leitura DS");
-    await this.ensureFolder(folder);
-    const path = this.getSharedStatePath();
-    const existing = this.app.vault.getAbstractFileByPath(path);
-    const remote = await this.readSharedReadingState();
-    if (remote) {
-      this.mergePositions(remote.positions);
-      this.mergeBooks(remote.books);
-      this.mergeAnnotations(remote.annotations, remote.annotationTombstones);
-    }
-    const state: LeituraDSSharedState = {
-      version: 1, updatedAt: new Date().toISOString(), positions: this.data.positions,
-      annotations: this.data.annotations ?? {}, books: this.data.books ?? {}, annotationTombstones: this.data.annotationTombstones ?? {}
-    };
-    const content = JSON.stringify(state, null, 2);
-    this.writingSharedState = true;
+    this.sharedSaveRequested = true;
+    if (this.sharedSavePromise) return this.sharedSavePromise;
+    this.sharedSavePromise = (async () => {
+      while (this.sharedSaveRequested) {
+        this.sharedSaveRequested = false;
+        await this.writeSharedReadingState();
+      }
+    })();
     try {
+      await this.sharedSavePromise;
+    } finally {
+      this.sharedSavePromise = null;
+    }
+  }
+
+  private async writeSharedReadingState(): Promise<void> {
+    const folder = normalizePath(this.leituraSettings.baseFolder.trim() || "Leitura DS");
+    try {
+      await this.ensureFolder(folder);
+      const path = this.getSharedStatePath();
+      const existing = this.app.vault.getAbstractFileByPath(path);
+      const remote = await this.readSharedReadingState();
+      if (remote) {
+        this.mergePositions(remote.positions);
+        this.mergeBooks(remote.books);
+        this.mergeAnnotations(remote.annotations, remote.annotationTombstones);
+        this.mergeMarkers(remote.markers ?? {}, remote.markerTombstones ?? {});
+        this.mergeReferencePoints(remote.referencePoints ?? {});
+      }
+      const state: LeituraDSSharedState = {
+        version: 1, updatedAt: new Date().toISOString(), positions: this.data.positions,
+        annotations: this.data.annotations ?? {}, books: this.data.books ?? {}, annotationTombstones: this.data.annotationTombstones ?? {},
+        markers: this.data.markers ?? {}, markerTombstones: this.data.markerTombstones ?? {}, referencePoints: this.data.referencePoints ?? {}
+      };
+      const content = JSON.stringify(state, null, 2);
+      this.writingSharedState = true;
       if (existing instanceof TFile) {
         await this.createDailyStateBackup(existing);
         await this.app.vault.modify(existing, content);
@@ -256,8 +352,8 @@ export default class LeituraDSPlugin extends Plugin {
       this.lastSharedSaveAt = state.updatedAt;
     } finally {
       this.writingSharedState = false;
+      await this.saveData(this.data);
     }
-    await this.saveData(this.data);
   }
 
   getReferencePoint(bookId: string): ReadingPosition | undefined {
@@ -267,7 +363,7 @@ export default class LeituraDSPlugin extends Plugin {
   async setReferencePoint(bookId: string, position: ReadingPosition): Promise<void> {
     this.data.referencePoints ??= {};
     this.data.referencePoints[bookId] = position;
-    await this.saveData(this.data);
+    await this.saveSharedReadingState();
   }
 
   getMarkers(bookId: string): BookMarker[] { return this.data.markers?.[bookId] ?? []; }
@@ -275,13 +371,15 @@ export default class LeituraDSPlugin extends Plugin {
   async saveMarker(bookId: string, marker: BookMarker): Promise<void> {
     this.data.markers ??= {};
     this.data.markers[bookId] = [...(this.data.markers[bookId] ?? []), marker];
-    await this.saveData(this.data);
+    await this.saveSharedReadingState();
   }
 
   async deleteMarker(bookId: string, markerId: string): Promise<void> {
     this.data.markers ??= {};
+    this.data.markerTombstones ??= {};
     this.data.markers[bookId] = (this.data.markers[bookId] ?? []).filter((marker) => marker.id !== markerId);
-    await this.saveData(this.data);
+    this.data.markerTombstones[`${bookId}:${markerId}`] = new Date().toISOString();
+    await this.saveSharedReadingState();
   }
 
   getAnnotations(bookId: string): BookAnnotation[] {
@@ -300,7 +398,6 @@ export default class LeituraDSPlugin extends Plugin {
     const current = this.data.books[book.id];
     if (current && current.path === next.path && current.title === next.title && current.author === next.author && current.format === next.format && JSON.stringify(current.chapters) === JSON.stringify(next.chapters)) return;
     this.data.books[book.id] = next;
-    await this.saveData(this.data);
     await this.saveSharedReadingState();
   }
 
@@ -319,7 +416,6 @@ export default class LeituraDSPlugin extends Plugin {
     delete this.data.markers?.[previousId];
     delete this.data.referencePoints?.[previousId];
     delete this.data.books?.[previousId];
-    await this.saveData(this.data);
     await this.saveSharedReadingState();
   }
 
@@ -330,9 +426,8 @@ export default class LeituraDSPlugin extends Plugin {
     if (index >= 0) annotations[index] = annotation;
     else annotations.push(annotation);
     this.data.annotations[bookId] = annotations;
-    await this.saveData(this.data);
     await this.saveSharedReadingState();
-    await this.exportBookHighlights(bookId);
+    if (this.leituraSettings.autoExportHighlights) await this.exportBookHighlights(bookId);
   }
 
   async deleteAnnotation(bookId: string, annotationId: string): Promise<void> {
@@ -340,9 +435,8 @@ export default class LeituraDSPlugin extends Plugin {
     this.data.annotationTombstones ??= {};
     this.data.annotations[bookId] = (this.data.annotations[bookId] ?? []).filter((item) => item.id !== annotationId);
     this.data.annotationTombstones[`${bookId}:${annotationId}`] = new Date().toISOString();
-    await this.saveData(this.data);
     await this.saveSharedReadingState();
-    await this.exportBookHighlights(bookId);
+    if (this.leituraSettings.autoExportHighlights) await this.exportBookHighlights(bookId);
   }
 
   async exportAllHighlights(showNotice = false): Promise<void> {

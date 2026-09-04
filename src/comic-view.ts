@@ -25,16 +25,21 @@ export class LeituraDSComicView extends ItemView {
   private thumbnailTray!: HTMLElement;
   private thumbnailGrid!: HTMLElement;
   private annotationButton!: HTMLButtonElement;
+  private spreadButton!: HTMLButtonElement;
+  private directionButton!: HTMLButtonElement;
   private zoom = 1;
   private fitMode: "page" | "width" | "original" = "page";
   private spreadMode = false;
   private readingDirection: "ltr" | "rtl" = "ltr";
   private pageUrls = new Map<number, string>();
-  private pointers = new Map<number, { x: number; y: number }>();
+  private pageLoads = new Map<number, Promise<string>>();
+  private pointers = new Map<number, { startX: number; startY: number; x: number; y: number }>();
   private pinchDistance = 0;
   private suppressPageClickUntil = 0;
   private thumbnailsOpen = false;
   private thumbnailRender = 0;
+  private pageRequest = 0;
+  private saveTimer: number | null = null;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: LeituraDSPlugin) { super(leaf); }
   getViewType(): string { return LEITURA_DS_COMIC_VIEW; }
@@ -69,7 +74,11 @@ export class LeituraDSComicView extends ItemView {
     if (this.sourceFilePath) await this.loadComic(this.sourceFilePath);
   }
 
-  async onClose(): Promise<void> { await this.persistPosition(); this.releaseComic(); }
+  async onClose(): Promise<void> {
+    if (this.saveTimer !== null) window.clearTimeout(this.saveTimer);
+    await this.persistPosition();
+    this.releaseComic();
+  }
 
   async setState(state: unknown): Promise<void> {
     this.sourceFilePath = typeof state === "object" && state && "file" in state && typeof state.file === "string" ? state.file : "";
@@ -106,10 +115,10 @@ export class LeituraDSComicView extends ItemView {
     const zoomIn = controls.createEl("button", { text: "+", attr: { "aria-label": "Aumentar zoom", title: "Aumentar zoom (+)" } });
     zoomIn.addEventListener("click", () => this.changeZoom(.2));
     this.zoomLabel = controls.createDiv({ cls: "flow-comic__zoom", text: "100%" });
-    const spread = controls.createEl("button", { cls: "flow-comic__spread-toggle", text: "Dupla", attr: { "aria-label": "Alternar páginas duplas", title: "Páginas duplas (D)" } });
-    spread.addEventListener("click", () => void this.toggleSpreadMode());
-    const direction = controls.createEl("button", { text: "RTL", attr: { "aria-label": "Alternar direção de leitura", title: "Modo mangá, direita para esquerda (R)" } });
-    direction.addEventListener("click", () => this.toggleReadingDirection());
+    this.spreadButton = controls.createEl("button", { cls: "flow-comic__spread-toggle", text: "Dupla", attr: { "aria-label": "Alternar páginas duplas", title: "Páginas duplas (D)" } });
+    this.spreadButton.addEventListener("click", () => void this.toggleSpreadMode());
+    this.directionButton = controls.createEl("button", { text: "RTL", attr: { "aria-label": "Alternar direção de leitura", title: "Modo mangá, direita para esquerda (R)" } });
+    this.directionButton.addEventListener("click", () => this.toggleReadingDirection());
     const markers = controls.createEl("button", { text: "★", attr: { "aria-label": "Marcadores", title: "Marcadores (M)" } });
     markers.addEventListener("click", () => this.openMarkers());
     this.annotationButton = controls.createEl("button", { text: "Nota", attr: { "aria-label": "Anotar página", title: "Destaque e comentário da página (A)" } });
@@ -118,6 +127,7 @@ export class LeituraDSComicView extends ItemView {
     this.thumbnailTray = root.createDiv({ cls: "flow-comic__thumbnails" });
     this.thumbnailGrid = this.thumbnailTray.createDiv({ cls: "flow-comic__thumbnail-grid" });
     this.pageHost = root.createDiv({ cls: "flow-comic__page-host", attr: { "data-fit": "page" } });
+    this.pageHost.addEventListener("scroll", () => this.schedulePositionSave(), { passive: true });
     const spreadHost = this.pageHost.createDiv({ cls: "flow-comic__spread" });
     this.image = spreadHost.createEl("img", { cls: "flow-comic__image", attr: { alt: "Página do quadrinho" } });
     this.secondaryImage = spreadHost.createEl("img", { cls: "flow-comic__image flow-comic__image--secondary", attr: { alt: "" } });
@@ -151,7 +161,19 @@ export class LeituraDSComicView extends ItemView {
       this.title.textContent = this.comic.title;
       const saved = this.plugin.getPosition(this.comic.id);
       const requested = this.requestedPage; this.requestedPage = null;
-      await this.showPage(requested ?? saved?.chapterIndex ?? 0, false);
+      const defaults = this.plugin.leituraSettings;
+      this.fitMode = saved?.comicFitMode ?? defaults.defaultComicFitMode;
+      this.zoom = saved?.comicZoom ?? 1;
+      this.spreadMode = saved?.comicSpreadMode ?? defaults.defaultComicSpreadMode;
+      this.readingDirection = saved?.comicReadingDirection ?? defaults.defaultComicReadingDirection;
+      this.pageHost.toggleClass("is-spread", this.spreadMode);
+      this.pageHost.toggleClass("is-rtl", this.readingDirection === "rtl");
+      this.spreadButton.toggleClass("is-active", this.spreadMode);
+      this.directionButton.toggleClass("is-active", this.readingDirection === "rtl");
+      this.applyImageFit();
+      const page = requested ?? saved?.chapterIndex ?? 0;
+      const restoreScrollTop = requested === null && saved?.chapterIndex === page ? saved.comicScrollTop ?? 0 : 0;
+      await this.showPage(page, false, restoreScrollTop);
     } catch (error) {
       console.error("Leitura DS could not open CBZ", error);
       this.image.removeAttribute("src");
@@ -163,18 +185,22 @@ export class LeituraDSComicView extends ItemView {
     }
   }
 
-  private async showPage(index: number, shouldPersist = true): Promise<void> {
+  private async showPage(index: number, shouldPersist = true, restoreScrollTop = 0): Promise<void> {
     if (!this.comic) return;
-    const nextIndex = Math.max(0, Math.min(index, this.comic.pages.length - 1));
+    const comic = this.comic;
+    const request = ++this.pageRequest;
+    const nextIndex = Math.max(0, Math.min(index, comic.pages.length - 1));
     const changedPage = nextIndex !== this.pageIndex;
     try {
       const url = await this.getPageUrl(nextIndex);
+      const rightIndex = nextIndex + 1;
+      const rightUrl = this.spreadMode && rightIndex < comic.pages.length ? await this.getPageUrl(rightIndex) : "";
+      if (request !== this.pageRequest || this.comic !== comic) return;
       this.pageIndex = nextIndex;
       this.image.src = url;
-      const rightIndex = nextIndex + 1;
-      if (this.spreadMode && rightIndex < this.comic.pages.length) {
-        this.secondaryImage.src = await this.getPageUrl(rightIndex);
-        this.secondaryImage.alt = `${this.comic.title}, página ${rightIndex + 1}`;
+      if (rightUrl) {
+        this.secondaryImage.src = rightUrl;
+        this.secondaryImage.alt = `${comic.title}, página ${rightIndex + 1}`;
         this.secondaryImage.show();
       } else {
         this.secondaryImage.removeAttribute("src");
@@ -186,16 +212,22 @@ export class LeituraDSComicView extends ItemView {
     }
     // Each comic page is read from top to bottom. A page turn must not inherit
     // the scroll position of the preceding page.
-    if (changedPage) this.pageHost.scrollTo({ top: 0, left: 0, behavior: "auto" });
-    this.image.alt = `${this.comic.title}, página ${this.pageIndex + 1}`;
-    const rightPage = this.spreadMode && this.pageIndex + 1 < this.comic.pages.length ? `–${this.pageIndex + 2}` : "";
-    this.pageLabel.textContent = `Página ${this.pageIndex + 1}${rightPage} de ${this.comic.pages.length}`;
-    this.progress.style.width = `${((this.pageIndex + 1) / this.comic.pages.length) * 100}%`;
+    if (changedPage || restoreScrollTop > 0) {
+      const scrollTop = changedPage ? restoreScrollTop : Math.max(this.pageHost.scrollTop, restoreScrollTop);
+      this.pageHost.scrollTo({ top: scrollTop, left: 0, behavior: "auto" });
+      window.requestAnimationFrame(() => {
+        if (request === this.pageRequest) this.pageHost.scrollTo({ top: scrollTop, left: 0, behavior: "auto" });
+      });
+    }
+    this.image.alt = `${comic.title}, página ${this.pageIndex + 1}`;
+    const rightPage = this.spreadMode && this.pageIndex + 1 < comic.pages.length ? `–${this.pageIndex + 2}` : "";
+    this.pageLabel.textContent = `Página ${this.pageIndex + 1}${rightPage} de ${comic.pages.length}`;
+    this.progress.style.width = `${((this.pageIndex + 1) / comic.pages.length) * 100}%`;
     this.previous.disabled = this.pageIndex === 0;
     this.next.disabled = this.pageIndex >= this.comic.pages.length - (this.spreadMode ? 2 : 1);
     this.renderPageAnnotationState();
     this.trimPageCache();
-    void this.preloadNearbyPages();
+    if (this.plugin.leituraSettings.preloadComicPages) void this.preloadNearbyPages();
     if (this.thumbnailsOpen) void this.renderThumbnails();
     if (shouldPersist) await this.persistPosition();
   }
@@ -213,33 +245,48 @@ export class LeituraDSComicView extends ItemView {
   private async toggleSpreadMode(): Promise<void> {
     this.spreadMode = !this.spreadMode;
     this.pageHost.toggleClass("is-spread", this.spreadMode);
+    this.spreadButton.toggleClass("is-active", this.spreadMode);
     await this.showPage(this.pageIndex, false);
+    this.schedulePositionSave();
   }
 
   private toggleReadingDirection(): void {
     this.readingDirection = this.readingDirection === "ltr" ? "rtl" : "ltr";
     this.pageHost.toggleClass("is-rtl", this.readingDirection === "rtl");
+    this.directionButton.toggleClass("is-active", this.readingDirection === "rtl");
+    this.schedulePositionSave();
     new Notice(this.readingDirection === "rtl" ? "Modo mangá ativado: direita para esquerda." : "Modo ocidental ativado: esquerda para direita.");
   }
 
   private async getPageUrl(index: number): Promise<string> {
     if (!this.comic) throw new Error("Quadrinho não está aberto.");
+    if (index < 0 || index >= this.comic.pages.length) throw new Error("Página do quadrinho fora do intervalo.");
     const cached = this.pageUrls.get(index) ?? this.comic.pages[index];
     if (cached) { this.pageUrls.set(index, cached); return cached; }
-    if (!this.comic.loadPage) throw new Error("Página do quadrinho não encontrada.");
-    const url = await this.comic.loadPage(index);
-    this.pageUrls.set(index, url);
-    return url;
+    const loader = this.comic.loadPage;
+    if (!loader) throw new Error("Página do quadrinho não encontrada.");
+    const currentLoad = this.pageLoads.get(index);
+    if (currentLoad) return currentLoad;
+    const comic = this.comic;
+    const load = loader(index).then((url) => {
+      if (this.comic !== comic) { URL.revokeObjectURL(url); throw new Error("O quadrinho foi fechado durante o carregamento."); }
+      this.pageUrls.set(index, url);
+      return url;
+    });
+    this.pageLoads.set(index, load);
+    try { return await load; }
+    finally { if (this.pageLoads.get(index) === load) this.pageLoads.delete(index); }
   }
 
   private async preloadNearbyPages(): Promise<void> {
     if (!this.comic?.loadPage) return;
-    await Promise.all([this.pageIndex - 1, this.pageIndex + 1]
+    await Promise.allSettled([this.pageIndex - 1, this.pageIndex + 1]
       .filter((index) => index >= 0 && index < this.comic!.pages.length && !this.pageUrls.has(index))
-      .map(async (index) => this.pageUrls.set(index, await this.comic!.loadPage!(index))));
+      .map((index) => this.getPageUrl(index)));
   }
 
   private trimPageCache(): void {
+    if (!this.comic?.loadPage) return;
     for (const [index, url] of this.pageUrls) {
       if (Math.abs(index - this.pageIndex) > 2) {
         URL.revokeObjectURL(url);
@@ -365,6 +412,7 @@ export class LeituraDSComicView extends ItemView {
     this.fitMode = "original";
     this.zoom = Math.max(.5, Math.min(4, Number((this.zoom + delta).toFixed(2))));
     this.applyImageFit();
+    this.schedulePositionSave();
   }
 
   private cycleFitMode(): void {
@@ -375,11 +423,15 @@ export class LeituraDSComicView extends ItemView {
     this.fitMode = mode;
     this.zoom = 1;
     this.applyImageFit();
+    this.schedulePositionSave();
   }
 
   private applyImageFit(): void {
     this.pageHost.dataset.fit = this.fitMode;
-    this.image.style.transform = `scale(${this.zoom})`;
+    [this.image, this.secondaryImage].forEach((image) => {
+      image.style.removeProperty("transform");
+      image.style.setProperty("zoom", String(this.zoom));
+    });
     this.zoomLabel.textContent = this.fitMode === "page" ? "Página" : this.fitMode === "width" ? "Largura" : this.zoom === 1 ? "Original" : `${Math.round(this.zoom * 100)}%`;
   }
 
@@ -393,14 +445,15 @@ export class LeituraDSComicView extends ItemView {
   }
 
   private onPointerDown(event: PointerEvent): void {
-    this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    this.pointers.set(event.pointerId, { startX: event.clientX, startY: event.clientY, x: event.clientX, y: event.clientY });
     this.pageHost.setPointerCapture?.(event.pointerId);
     if (this.pointers.size === 2) this.pinchDistance = this.pointerDistance();
   }
 
   private onPointerMove(event: PointerEvent): void {
     if (!this.pointers.has(event.pointerId)) return;
-    this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const pointer = this.pointers.get(event.pointerId)!;
+    this.pointers.set(event.pointerId, { ...pointer, x: event.clientX, y: event.clientY });
     if (this.pointers.size === 2) {
       const distance = this.pointerDistance();
       if (this.pinchDistance) this.changeZoom((distance - this.pinchDistance) / 180);
@@ -413,11 +466,14 @@ export class LeituraDSComicView extends ItemView {
     this.pointers.delete(event.pointerId);
     if (this.pointers.size < 2) this.pinchDistance = 0;
     if (!start || this.zoom > 1.01 || event.pointerType === "mouse") return;
-    const movement = event.clientX - start.x;
-    if (Math.abs(movement) < 60) return;
+    const movement = event.clientX - start.startX;
+    const verticalMovement = event.clientY - start.startY;
+    if (Math.abs(verticalMovement) > 18) this.suppressPageClickUntil = Date.now() + 350;
+    if (Math.abs(movement) < 60 || Math.abs(verticalMovement) > Math.abs(movement)) return;
     this.suppressPageClickUntil = Date.now() + 350;
-    const direction = movement < 0 ? 1 : -1;
-    void this.movePage(this.readingDirection === "rtl" ? -direction : direction);
+    const direction: -1 | 1 = movement < 0 ? 1 : -1;
+    const readingDirection: -1 | 1 = this.readingDirection === "rtl" ? (direction === 1 ? -1 : 1) : direction;
+    void this.movePage(readingDirection);
   }
 
   private pointerDistance(): number {
@@ -428,13 +484,28 @@ export class LeituraDSComicView extends ItemView {
   private async persistPosition(): Promise<void> {
     if (!this.comic) return;
     const ratio = this.comic.pages.length ? (this.pageIndex + 1) / this.comic.pages.length : 0;
-    const position: ReadingPosition = { chapterIndex: this.pageIndex, progress: ratio, word: `Página ${this.pageIndex + 1}`, updatedAt: new Date().toISOString() };
+    const position: ReadingPosition = {
+      chapterIndex: this.pageIndex, progress: ratio, word: `Página ${this.pageIndex + 1}`,
+      comicScrollTop: this.pageHost.scrollTop, comicZoom: this.zoom, comicFitMode: this.fitMode,
+      comicSpreadMode: this.spreadMode, comicReadingDirection: this.readingDirection,
+      updatedAt: new Date().toISOString()
+    };
     await this.plugin.setPosition(this.comic.id, position);
   }
 
+  private schedulePositionSave(): void {
+    if (this.saveTimer !== null) window.clearTimeout(this.saveTimer);
+    this.saveTimer = window.setTimeout(() => {
+      this.saveTimer = null;
+      void this.persistPosition();
+    }, 800);
+  }
+
   private releaseComic(): void {
+    this.pageRequest += 1;
     new Set([...(this.comic?.resources ?? []), ...this.pageUrls.values()]).forEach((url) => URL.revokeObjectURL(url));
     this.pageUrls.clear();
+    this.pageLoads.clear();
     this.comic = null;
   }
 }

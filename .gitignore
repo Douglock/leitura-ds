@@ -2,4 +2,3 @@ node_modules/
 main.js
 *.map
 .DS_Store
-versions.json

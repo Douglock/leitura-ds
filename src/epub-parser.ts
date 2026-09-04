@@ -51,12 +51,14 @@ export async function parseEpub(buffer: ArrayBuffer, vaultPath: string): Promise
   const resources: string[] = [];
 
   for (const item of manifest.values()) {
-    if (item.mediaType.includes("html") || item.mediaType.includes("xml")) continue;
+    // Reader typography is controlled by Leitura DS. Inflating every embedded
+    // font/audio file here wastes a large amount of memory on mobile devices.
     const fullPath = resolvePath(opfDir, item.href);
+    const type = item.mediaType || mimeFromPath(fullPath);
+    if (!type.startsWith("image/")) continue;
     const file = zip.file(fullPath);
     if (!file) continue;
     const blob = await file.async("blob");
-    const type = item.mediaType || mimeFromPath(fullPath);
     const url = URL.createObjectURL(type ? blob.slice(0, blob.size, type) : blob);
     resourceUrls.set(fullPath, url);
     resources.push(url);
@@ -160,21 +162,27 @@ async function readNavigationLabels(
   const labels = new Map<string, string>();
   const navItem = Array.from(manifest.values()).find((item) => item.properties.split(/\s+/).includes("nav"));
   if (navItem) {
-    const navPath = resolvePath(opfDir, navItem.href);
-    const nav = parseXml(await requiredText(zip, navPath), "application/xhtml+xml");
-    nav.querySelectorAll("nav a[href]").forEach((anchor) => {
-      const href = anchor.getAttribute("href") ?? "";
-      const label = anchor.textContent?.trim() ?? "";
-      if (href && label) labels.set(stripFragment(resolvePath(dirname(navPath), href)).replace(`${opfDir}/`, ""), label);
-    });
-    return labels;
+    try {
+      const navPath = resolvePath(opfDir, navItem.href);
+      const nav = parseXml(await requiredText(zip, navPath), "application/xhtml+xml");
+      nav.querySelectorAll("nav a[href]").forEach((anchor) => {
+        const href = anchor.getAttribute("href") ?? "";
+        const label = anchor.textContent?.trim() ?? "";
+        if (href && label) labels.set(stripFragment(resolvePath(dirname(navPath), href)).replace(`${opfDir}/`, ""), label);
+      });
+      if (labels.size) return labels;
+    } catch {
+      // Some older EPUBs declare a missing navigation file but still include NCX.
+    }
   }
 
   const tocId = opf.querySelector("spine")?.getAttribute("toc") ?? "";
   const ncxItem = manifest.get(tocId);
   if (!ncxItem) return labels;
   const ncxPath = resolvePath(opfDir, ncxItem.href);
-  const ncx = parseXml(await requiredText(zip, ncxPath), "application/xml");
+  const ncxFile = zip.file(ncxPath);
+  if (!ncxFile) return labels;
+  const ncx = parseXml(await ncxFile.async("text"), "application/xml");
   ncx.querySelectorAll("navPoint").forEach((point) => {
     const href = point.querySelector("content")?.getAttribute("src") ?? "";
     const label = point.querySelector("navLabel > text")?.textContent?.trim() ?? "";
@@ -219,6 +227,25 @@ function rewriteResourceAttributes(document: Document, chapterPath: string, reso
       if (url) element.setAttribute(attribute, url);
     });
   }
+  document.querySelectorAll("[srcset]").forEach((element) => {
+    const value = element.getAttribute("srcset") ?? "";
+    const rewritten = value.split(",").map((candidate) => {
+      const [target, ...descriptor] = candidate.trim().split(/\s+/);
+      if (!target || /^(data:|https?:|blob:)/i.test(target)) return candidate.trim();
+      const url = resources.get(resolvePath(dirname(chapterPath), target));
+      return url ? [url, ...descriptor].join(" ") : "";
+    }).filter(Boolean).join(", ");
+    if (rewritten) element.setAttribute("srcset", rewritten);
+    else element.removeAttribute("srcset");
+  });
+  document.querySelectorAll("svg image[href], svg image[xlink\\:href]").forEach((element) => {
+    for (const attribute of ["href", "xlink:href"]) {
+      const value = element.getAttribute(attribute);
+      if (!value || /^(data:|https?:|blob:|#)/i.test(value)) continue;
+      const url = resources.get(resolvePath(dirname(chapterPath), value));
+      if (url) element.setAttribute(attribute, url);
+    }
+  });
 }
 
 function stripUnsafeElements(document: Document): void {
@@ -231,7 +258,9 @@ function stripUnsafeElements(document: Document): void {
 }
 
 function stripFragment(value: string): string {
-  return decodeURIComponent(value.split("#")[0] ?? value);
+  const path = value.split("#")[0] ?? value;
+  try { return decodeURIComponent(path); }
+  catch { return path; }
 }
 
 function mimeFromPath(path: string): string {

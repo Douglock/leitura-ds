@@ -30,6 +30,7 @@ O Leitura DS mantém livros, progresso, destaques e comentários no seu próprio
 - Biblioteca visual com capas, busca e página de todos os destaques.
 - Temas, fontes, espaçamento, largura do texto, duas colunas e tela cheia.
 - Estado compartilhado no Vault: posição e palavra em destaque continuam em outros dispositivos.
+- Estante instantânea com carregamento inteligente de capas, evitando abrir todos os arquivos grandes de uma vez.
 
 ### Modos de leitura
 
@@ -39,6 +40,7 @@ O Leitura DS mantém livros, progresso, destaques e comentários no seu próprio
 - **Thread**: trechos curtos em cartões verticais, para leitura contínua.
 - **Stories**: um trecho por tela, com toque nas laterais para avançar ou voltar.
 - **Carrossel**: trechos pequenos navegáveis lateralmente.
+- Os modos sociais têm tamanho de texto e extensão dos cartões configuráveis, barra de progresso e retomada automática.
 - **Leitura em voz alta**: usa a voz disponível no dispositivo a partir do ponto de leitura.
 
 ### Quadrinhos
@@ -47,6 +49,14 @@ O Leitura DS mantém livros, progresso, destaques e comentários no seu próprio
 - Zoom, ajuste de página, páginas duplas, leitura RTL e controles por teclado.
 - Navegação por página, miniaturas próximas, marcadores e notas por página.
 - Em páginas altas, as setas para cima e para baixo rolam a arte; ao trocar de página a leitura retorna ao topo.
+- Zoom sem cortar o topo, restauração da posição vertical e preferências próprias de ajuste, página dupla e direção.
+
+### Desempenho e sincronização
+
+- Capas EPUB e CBZ são carregadas somente quando aparecem na tela; CBRs pesados são preparados ao abrir.
+- Imagens vizinhas de quadrinhos usam cache limitado e configurável.
+- Gravações simultâneas são agrupadas para reduzir trabalho no iPhone e Android.
+- Pontos de leitura, referências, marcadores, destaques e exclusões são reconciliados pelo arquivo de estado do Vault.
 
 > CBR depende do suporte ao formato RAR disponível no ambiente do Obsidian. Para maior compatibilidade entre dispositivos, CBZ é o formato recomendado.
 

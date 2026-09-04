@@ -21,12 +21,12 @@ export class LeituraDSStatsView extends ItemView {
     const dates = Array.from({ length: 7 }, (_, offset) => {
       const date = new Date(today);
       date.setDate(today.getDate() - (6 - offset));
-      return date.toISOString().slice(0, 10);
+      return this.localDateKey(date);
     });
     const weekSeconds = dates.reduce((total, date) => total + (days[date]?.seconds ?? 0), 0);
     const totalSeconds = Object.values(days).reduce((total, day) => total + day.seconds, 0);
     const streak = this.getStreak(days, today);
-    const todaySeconds = days[today.toISOString().slice(0, 10)]?.seconds ?? 0;
+    const todaySeconds = days[this.localDateKey(today)]?.seconds ?? 0;
     const goalSeconds = this.plugin.leituraSettings.dailyGoalMinutes * 60;
     const cards = root.createDiv({ cls: "flow-stats__summary" });
     this.metric(cards, this.formatDuration(weekSeconds), "Nesta semana");
@@ -56,7 +56,13 @@ export class LeituraDSStatsView extends ItemView {
       const book = this.plugin.getBookRecord(bookId);
       const position = this.plugin.getPosition(bookId);
       const row = recent.createDiv({ cls: "flow-stats__book" });
-      row.createSpan({ text: book?.title ?? "Livro" });
+      const identity = row.createDiv({ cls: "flow-stats__book-identity" });
+      identity.createSpan({ text: book?.title ?? "Livro" });
+      const secondsRead = this.plugin.readingStats.bookSeconds?.[bookId] ?? 0;
+      const estimate = position && position.progress >= .02 && position.progress < .995 && secondsRead >= 60
+        ? secondsRead * ((1 - position.progress) / position.progress)
+        : 0;
+      if (estimate > 0) identity.createEl("small", { text: `Previsão para terminar: ${this.formatDuration(estimate)}` });
       row.createSpan({ text: position ? `${Math.round(position.progress * 100)}%` : "Em leitura" });
     });
   }
@@ -70,7 +76,7 @@ export class LeituraDSStatsView extends ItemView {
   private getStreak(days: Record<string, { seconds: number }>, from: Date): number {
     let streak = 0;
     const cursor = new Date(from);
-    while ((days[cursor.toISOString().slice(0, 10)]?.seconds ?? 0) > 0) { streak += 1; cursor.setDate(cursor.getDate() - 1); }
+    while ((days[this.localDateKey(cursor)]?.seconds ?? 0) > 0) { streak += 1; cursor.setDate(cursor.getDate() - 1); }
     return streak;
   }
 
@@ -82,5 +88,11 @@ export class LeituraDSStatsView extends ItemView {
 
   private labelDate(date: string, short = false): string {
     return new Intl.DateTimeFormat("pt-BR", short ? { weekday: "narrow" } : { weekday: "long", day: "numeric" }).format(new Date(`${date}T12:00:00`));
+  }
+
+  private localDateKey(date: Date): string {
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${date.getFullYear()}-${month}-${day}`;
   }
 }

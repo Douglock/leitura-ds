@@ -86,7 +86,11 @@ export async function parseCbr(buffer: ArrayBuffer, vaultPath: string, runtimeBa
   }
   if (!extracted.length) throw new Error("Este CBR usa uma variante RAR que o leitor local ainda não consegue extrair. Converta-o para CBZ para ler em todos os seus dispositivos.");
   extracted.sort((left, right) => left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: "base" }));
-  const pages = extracted.map(({ name, bytes }) => URL.createObjectURL(new Blob([bytes], { type: mime(name) })));
+  const pages = extracted.map(({ name, bytes }) => {
+    const copy = new Uint8Array(bytes.byteLength);
+    copy.set(bytes);
+    return URL.createObjectURL(new Blob([copy.buffer], { type: mime(name) }));
+  });
   const title = (vaultPath.split("/").pop() ?? "Quadrinho").replace(/\.cbr$/i, "").replace(/[._-]+/g, " ").trim();
   return {
     id: comicId(vaultPath, title), path: vaultPath, title, author: "Quadrinho", coverUrl: pages[0], pages,

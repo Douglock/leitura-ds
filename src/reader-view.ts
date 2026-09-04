@@ -101,6 +101,7 @@ export class LeituraDSView extends ItemView {
     this.registerDomEvent(document, "pointerdown", (event) => this.handleSelectionOutsideTap(event), { capture: true });
     this.registerDomEvent(document, "keydown", (event) => {
       if (event.key === "Escape") (this.containerEl.children[1] as HTMLElement)?.removeClass("is-reader-fullscreen", "is-immersive");
+      if (this.app.workspace.getActiveViewOfType(LeituraDSView) === this) this.handleReaderKeydown(event);
     });
     if (this.sourceFilePath) await this.loadBook(this.sourceFilePath);
   }
@@ -260,9 +261,13 @@ export class LeituraDSView extends ItemView {
     this.readerHost.addEventListener("touchend", (event) => this.handleChapterSwipe(event), { passive: true });
     this.readerHost.createDiv({ cls: "leitura-ds__empty", text: "Abra um arquivo EPUB do seu Vault." });
     this.socialOverlay = container.createDiv({ cls: "leitura-ds__social is-hidden" });
-    this.socialOverlay.addEventListener("pointerdown", (event) => { this.socialPointerStart = event.clientX; });
+    this.socialOverlay.addEventListener("pointerdown", (event) => {
+      const target = event.target;
+      this.socialPointerStart = target instanceof Element && Boolean(target.closest("button, select, input, textarea, a")) ? null : event.clientX;
+    });
     this.socialOverlay.addEventListener("pointerup", (event) => {
       if (this.socialPointerStart === null || this.socialMode === "thread") return;
+      if (event.target instanceof Element && event.target.closest("button, select, input, textarea, a")) { this.socialPointerStart = null; return; }
       const distance = event.clientX - this.socialPointerStart;
       this.socialPointerStart = null;
       if (Math.abs(distance) > 44) this.socialMove?.(distance < 0 ? 1 : -1);
@@ -280,7 +285,6 @@ export class LeituraDSView extends ItemView {
     const startFastButton = this.selectionBar.createEl("button", { text: "Marcar para ler daqui", attr: { "aria-label": "Marcar palavra como início da leitura rápida" } });
     startFastButton.addEventListener("click", () => this.markFastStartFromSelection());
     this.selectionBar.createSpan({ cls: "leitura-ds__selection-hint", text: "Dois toques fora para cancelar" });
-    container.addEventListener("keydown", (event) => this.handleReaderKeydown(event));
   }
 
   private renderFastControls(): void {
@@ -530,7 +534,7 @@ export class LeituraDSView extends ItemView {
       this.twoColumnButton.toggleClass("is-active", this.twoColumn);
       this.applyFastFontSize();
       this.applyTheme();
-      this.socialMode = defaults.defaultSocialMode ?? "normal";
+      this.socialMode = saved?.socialMode ?? defaults.defaultSocialMode ?? "normal";
       this.socialModeSelect.value = this.socialMode;
       const requested = this.requestedChapterIndex;
       this.requestedChapterIndex = null;
@@ -619,26 +623,33 @@ export class LeituraDSView extends ItemView {
   private renderSocialMode(): void {
     const article = this.readerHost.querySelector<HTMLElement>(".leitura-ds__chapter");
     if (!article || this.socialMode === "normal") return;
+    const socialSettings = this.plugin.leituraSettings;
     // Cards that occupy an entire screen need deliberately short passages. The
     // thread can keep longer passages because it scrolls as a normal feed.
-    this.socialChunks = this.createSocialChunks(article, this.socialMode === "thread" ? 360 : 170);
+    this.socialChunks = this.createSocialChunks(article, this.socialMode === "thread" ? socialSettings.threadCharacters : socialSettings.socialCardCharacters);
     if (!this.socialChunks.length) return;
     const index = this.socialChunks.findIndex((chunk, current) => chunk.startWord <= this.fastWordIndex && (!this.socialChunks[current + 1] || this.socialChunks[current + 1].startWord > this.fastWordIndex));
     this.socialIndex = Math.max(0, index);
     this.socialOverlay.empty();
     this.socialOverlay.removeClass("is-hidden");
     this.socialOverlay.className = `leitura-ds__social leitura-ds__social--${this.socialMode}`;
+    this.socialOverlay.style.setProperty("--leitura-ds-social-font-size", `${socialSettings.socialFontSize}px`);
     this.readerHost.addClass("is-social-active");
     const header = this.socialOverlay.createDiv({ cls: "leitura-ds__social-header" });
     const exit = header.createEl("button", { text: "×", attr: { "aria-label": "Sair deste modo" } });
     exit.addEventListener("click", () => this.setSocialMode("normal"));
     header.createSpan({ text: this.book?.chapters[this.chapterIndex]?.label ?? "Capítulo" });
     const progress = header.createSpan({ cls: "leitura-ds__social-progress" });
+    const progressTrack = this.socialOverlay.createDiv({ cls: "leitura-ds__social-track", attr: { role: "progressbar", "aria-label": "Progresso neste capítulo", "aria-valuemin": "0", "aria-valuemax": "100" } });
+    const progressFill = progressTrack.createDiv({ cls: "leitura-ds__social-track-fill" });
     const renderStep = (): void => {
       const chunk = this.socialChunks[this.socialIndex];
       if (!chunk) return;
       this.fastWordIndex = chunk.startWord;
       progress.textContent = `${this.socialIndex + 1} / ${this.socialChunks.length}`;
+      const percent = ((this.socialIndex + 1) / this.socialChunks.length) * 100;
+      progressFill.style.width = `${percent}%`;
+      progressTrack.setAttribute("aria-valuenow", String(Math.round(percent)));
       this.socialOverlay.querySelector(".leitura-ds__social-body")?.remove();
       const body = this.socialOverlay.createDiv({ cls: "leitura-ds__social-body" });
       if (this.socialMode === "thread") {
@@ -646,7 +657,8 @@ export class LeituraDSView extends ItemView {
           const card = body.createDiv({ cls: index === this.socialIndex ? "leitura-ds__thread-card is-current" : "leitura-ds__thread-card", text: item.text });
           card.addEventListener("click", () => { this.socialIndex = index; renderStep(); });
         });
-        body.scrollTop = Math.max(0, (body.querySelector(".is-current") as HTMLElement | null)?.offsetTop - 80 || 0);
+        const currentCard = body.querySelector<HTMLElement>(".is-current");
+        body.scrollTop = Math.max(0, (currentCard?.offsetTop ?? 80) - 80);
       } else {
         const card = body.createDiv({ cls: "leitura-ds__social-card", text: chunk.text, attr: { "aria-live": "polite" } });
         const navigation = body.createDiv({ cls: "leitura-ds__social-navigation" });
@@ -654,6 +666,8 @@ export class LeituraDSView extends ItemView {
         const counter = navigation.createSpan({ text: `${this.socialIndex + 1} de ${this.socialChunks.length}` });
         const next = navigation.createEl("button", { text: "›", attr: { "aria-label": "Próximo trecho" } });
         previous.addEventListener("click", () => move(-1)); next.addEventListener("click", () => move(1));
+        previous.disabled = this.socialIndex === 0;
+        next.disabled = this.socialIndex === this.socialChunks.length - 1;
         if (this.socialMode === "carousel") counter.setAttribute("title", "Arraste para o lado para continuar");
         if (this.socialMode === "stories") counter.setAttribute("title", "Toque à direita para avançar ou à esquerda para voltar");
         card.tabIndex = 0;
@@ -671,6 +685,7 @@ export class LeituraDSView extends ItemView {
 
   private createSocialChunks(article: HTMLElement, maximumCharacters: number): Array<{ text: string; startWord: number }> {
     const paragraphs = Array.from(article.querySelectorAll<HTMLElement>("p, li, blockquote, h1, h2, h3"))
+      .filter((element) => !(element.matches("li, blockquote") && element.querySelector("p")))
       .map((element) => element.innerText.replace(/\s+/g, " ").trim()).filter(Boolean);
     const source = paragraphs.length ? paragraphs : [this.getReadableArticleText(article).replace(/\s+/g, " ").trim()];
     const chunks: Array<{ text: string; startWord: number }> = [];
@@ -679,11 +694,23 @@ export class LeituraDSView extends ItemView {
       const words = paragraph.match(/\S+/g) ?? [];
       let part: string[] = [];
       let partStart = wordsBefore;
+      let partLength = 0;
+      const flush = (): void => {
+        if (!part.length) return;
+        chunks.push({ text: part.join(" "), startWord: partStart });
+        partStart += part.length;
+        part = [];
+        partLength = 0;
+      };
       words.forEach((word) => {
-        if (part.length && `${part.join(" ")} ${word}`.length > maximumCharacters) { chunks.push({ text: part.join(" "), startWord: partStart }); partStart += part.length; part = []; }
+        const nextLength = partLength + (part.length ? 1 : 0) + word.length;
+        if (part.length && nextLength > maximumCharacters) flush();
         part.push(word);
+        partLength += (part.length > 1 ? 1 : 0) + word.length;
+        // Prefer a natural sentence boundary once a card is comfortably full.
+        if (partLength >= maximumCharacters * .62 && /[.!?…][”"')\]]?$/.test(word)) flush();
       });
-      if (part.length) chunks.push({ text: part.join(" "), startWord: partStart });
+      flush();
       wordsBefore += words.length;
     });
     return chunks;
@@ -954,8 +981,30 @@ export class LeituraDSView extends ItemView {
     if (this.progressFrame !== null) return;
     this.progressFrame = window.requestAnimationFrame(() => {
       this.progressFrame = null;
+      this.updateVisibleReadingWord();
       this.updateLiveProgress();
     });
+  }
+
+  /** Keeps the synced word aligned with the text currently being read, not only with RSVP mode. */
+  private updateVisibleReadingWord(): void {
+    if (this.socialMode !== "normal" || !this.fastPanel.hasClass("is-hidden") || !this.focusPanel.hasClass("is-hidden") || this.returnPosition) return;
+    const article = this.readerHost.querySelector<HTMLElement>(".leitura-ds__chapter");
+    if (!article) return;
+    const readerRect = this.readerHost.getBoundingClientRect();
+    const articleRect = article.getBoundingClientRect();
+    const x = Math.max(articleRect.left + 2, Math.min(articleRect.right - 2, readerRect.left + readerRect.width / 2));
+    const y = Math.max(articleRect.top + 2, Math.min(articleRect.bottom - 2, readerRect.top + Math.min(150, readerRect.height * .32)));
+    const documentWithCaret = document as Document & {
+      caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+      caretRangeFromPoint?: (x: number, y: number) => Range | null;
+    };
+    const position = documentWithCaret.caretPositionFromPoint?.(x, y);
+    const fallback = position ? null : documentWithCaret.caretRangeFromPoint?.(x, y);
+    const node = position?.offsetNode ?? fallback?.startContainer;
+    const offset = position?.offset ?? fallback?.startOffset ?? 0;
+    if (!node || !article.contains(node)) return;
+    this.fastWordIndex = this.wordIndexAtPosition(article, node, offset);
   }
 
   private clearStoppedWordHighlight(): void {
@@ -1070,6 +1119,7 @@ export class LeituraDSView extends ItemView {
       focusWordsPerMinute: this.focusWpm,
       colorFlow: this.colorFlow,
       twoColumn: this.twoColumn,
+      socialMode: this.socialMode,
       updatedAt: new Date().toISOString()
     });
     this.updateSyncStatus();
@@ -1157,8 +1207,14 @@ export class LeituraDSView extends ItemView {
   }
 
   private handleReaderKeydown(event: KeyboardEvent): void {
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || (event.target instanceof HTMLElement && event.target.isContentEditable)) return;
+    if (this.socialMode !== "normal" && !this.socialOverlay.hasClass("is-hidden")) {
+      if (event.key === "Escape") { event.preventDefault(); this.setSocialMode("normal"); }
+      else if (event.key === "ArrowLeft") { event.preventDefault(); this.socialMove?.(-1); }
+      else if (event.key === "ArrowRight" || event.code === "Space") { event.preventDefault(); this.socialMove?.(1); }
+      return;
+    }
     if (this.fastPanel.hasClass("is-hidden")) return;
-    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
     if (event.code === "Space") {
       event.preventDefault();
       this.toggleFastPlayback();

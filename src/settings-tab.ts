@@ -64,6 +64,22 @@ export class LeituraDSSettingTab extends PluginSettingTab {
       .addToggle((toggle) => toggle.setValue(settings.swipeNavigation).onChange(async (value) => { settings.swipeNavigation = value; await this.plugin.saveSettings(); }));
     new Setting(containerEl).setName("Modo de leitura social padrão").setDesc("Alterna a apresentação do EPUB; a leitura normal continua disponível a qualquer momento.")
       .addDropdown((drop) => drop.addOptions({ normal: "Leitura normal", thread: "Thread", stories: "Stories", carousel: "Carrossel" }).setValue(settings.defaultSocialMode ?? "normal").onChange(async (value) => { settings.defaultSocialMode = value as SocialReadingMode; await this.plugin.saveSettings(); }));
+    new Setting(containerEl).setName("Texto dos modos sociais").setDesc("Tamanho da fonte usado nos modos Thread, Stories e Carrossel.")
+      .addSlider((slider) => slider.setLimits(18, 40, 1).setValue(settings.socialFontSize).setDynamicTooltip().onChange(async (value) => { settings.socialFontSize = value; await this.plugin.saveSettings(); }));
+    new Setting(containerEl).setName("Tamanho dos cartões").setDesc("Quantidade aproximada de caracteres em cada Story ou cartão do Carrossel.")
+      .addSlider((slider) => slider.setLimits(80, 280, 10).setValue(settings.socialCardCharacters).setDynamicTooltip().onChange(async (value) => { settings.socialCardCharacters = value; await this.plugin.saveSettings(); }));
+    new Setting(containerEl).setName("Tamanho das postagens da Thread").setDesc("Quantidade aproximada de caracteres em cada bloco da Thread.")
+      .addSlider((slider) => slider.setLimits(160, 600, 20).setValue(settings.threadCharacters).setDynamicTooltip().onChange(async (value) => { settings.threadCharacters = value; await this.plugin.saveSettings(); }));
+
+    containerEl.createEl("h3", { text: "Quadrinhos" });
+    new Setting(containerEl).setName("Ajuste padrão da página").setDesc("Como uma HQ nova deve ocupar a tela ao abrir.")
+      .addDropdown((drop) => drop.addOptions({ page: "Página inteira", width: "Ajustar à largura", original: "Tamanho original" }).setValue(settings.defaultComicFitMode).onChange(async (value) => { settings.defaultComicFitMode = value as "page" | "width" | "original"; await this.plugin.saveSettings(); }));
+    new Setting(containerEl).setName("Páginas duplas por padrão").setDesc("Abre duas páginas lado a lado quando houver espaço.")
+      .addToggle((toggle) => toggle.setValue(settings.defaultComicSpreadMode).onChange(async (value) => { settings.defaultComicSpreadMode = value; await this.plugin.saveSettings(); }));
+    new Setting(containerEl).setName("Direção de leitura padrão").setDesc("Use direita para esquerda para mangás.")
+      .addDropdown((drop) => drop.addOptions({ ltr: "Esquerda para direita", rtl: "Direita para esquerda (mangá)" }).setValue(settings.defaultComicReadingDirection).onChange(async (value) => { settings.defaultComicReadingDirection = value as "ltr" | "rtl"; await this.plugin.saveSettings(); }));
+    new Setting(containerEl).setName("Pré-carregar páginas vizinhas").setDesc("Deixa a troca de página mais rápida. Desative em celulares com pouca memória.")
+      .addToggle((toggle) => toggle.setValue(settings.preloadComicPages).onChange(async (value) => { settings.preloadComicPages = value; await this.plugin.saveSettings(); }));
 
     containerEl.createEl("h3", { text: "Metas de leitura" });
     new Setting(containerEl).setName("Meta diária").setDesc("Tempo de leitura que você quer alcançar por dia.")
@@ -82,6 +98,8 @@ export class LeituraDSSettingTab extends PluginSettingTab {
       .addButton((button) => button.setButtonText("Abrir").onClick(() => void this.plugin.openStats()));
     new Setting(containerEl).setName("Exportar destaques").setDesc("Atualiza as notas Markdown de todos os livros.")
       .addButton((button) => button.setButtonText("Exportar").onClick(() => void this.plugin.exportAllHighlights(true)));
+    new Setting(containerEl).setName("Exportar automaticamente").setDesc("Atualiza a nota Markdown somente quando um destaque é criado, alterado ou removido. O plugin não reexporta tudo ao iniciar.")
+      .addToggle((toggle) => toggle.setValue(settings.autoExportHighlights).onChange(async (value) => { settings.autoExportHighlights = value; await this.plugin.saveSettings(); }));
     new Setting(containerEl).setName("Importar edições das notas").setDesc("Lê comentários e etiquetas que você alterou nas notas Markdown exportadas.")
       .addButton((button) => button.setButtonText("Importar").onClick(() => void this.plugin.importHighlightsFromMarkdown()));
     new Setting(containerEl).setName("Restaurar configurações padrão").setDesc("Restaura apenas estas preferências; livros, destaques e marcadores não serão apagados.")
