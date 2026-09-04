@@ -13,6 +13,7 @@ export interface ParsedBook {
   coverUrl?: string;
   chapters: BookChapter[];
   resources: string[];
+  warnings?: string[];
   format?: "epub" | "cbz" | "cbr";
   /** Keeps a malformed or unsupported local file visible in the shelf. */
   error?: string;

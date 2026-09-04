@@ -1,4 +1,4 @@
-import { ItemView, Notice, Platform, setIcon, WorkspaceLeaf } from "obsidian";
+import { ItemView, Modal, Notice, Platform, setIcon, WorkspaceLeaf } from "obsidian";
 import type LeituraDSPlugin from "./main";
 import { BookSearchModal } from "./book-search-modal";
 import { AnnotationModal } from "./annotation-modal";
@@ -11,6 +11,20 @@ import { createTextAnchor, resolveTextAnchor } from "./reading-anchor";
 import type { BookAnnotation, BookMarker, ParsedBook, ReaderAppearance, ReaderFont, ReaderTheme, ReadingPosition, SocialReadingMode } from "./types";
 
 export const LEITURA_DS_VIEW = "leitura-ds-view";
+
+class FootnoteModal extends Modal {
+  constructor(app: LeituraDSView["app"], private readonly title: string, private readonly html: string) { super(app); }
+  onOpen(): void {
+    this.titleEl.setText(this.title);
+    const content = this.contentEl.createDiv({ cls: "leitura-ds__footnote" });
+    content.innerHTML = this.html;
+    content.querySelectorAll("script, iframe, object, embed").forEach((element) => element.remove());
+    content.querySelectorAll("*").forEach((element) => Array.from(element.attributes).forEach((attribute) => {
+      if (attribute.name.toLowerCase().startsWith("on")) element.removeAttribute(attribute.name);
+    }));
+  }
+  onClose(): void { this.contentEl.empty(); }
+}
 
 export class LeituraDSView extends ItemView {
   private book: ParsedBook | null = null;
@@ -504,6 +518,7 @@ export class LeituraDSView extends ItemView {
       this.chapterWordCounts.clear();
       const buffer = await this.app.vault.readBinary(file);
       this.book = await parseEpub(buffer, file.path);
+      if (this.book.warnings?.length) new Notice(`Leitura DS abriu o livro em modo de recuperação. ${this.book.warnings.join(" ")}`, 8000);
       await this.plugin.registerBook(this.book);
       if (this.requestedLegacyBookId) {
         await this.plugin.migrateBookState(this.requestedLegacyBookId, this.book.id);
@@ -582,6 +597,7 @@ export class LeituraDSView extends ItemView {
       anchor.addEventListener("click", (event) => {
         const href = anchor.getAttribute("href") ?? "";
         event.preventDefault();
+        if (this.isFootnoteReference(anchor, href) && this.openFootnote(href)) return;
         void this.followBookLink(href);
       });
     });
@@ -797,9 +813,34 @@ export class LeituraDSView extends ItemView {
     const [rawPath, rawFragment = ""] = href.split("#");
     const targetPath = rawPath ? resolvePath(dirname(current.href), rawPath) : current.href;
     const targetIndex = this.book.chapters.findIndex((chapter) => chapter.href === targetPath);
-    const fragment = decodeURIComponent(rawFragment);
+    let fragment = rawFragment;
+    try { fragment = decodeURIComponent(rawFragment); } catch { /* Keep malformed EPUB fragments usable. */ }
     if (targetIndex >= 0 && targetIndex !== this.chapterIndex) await this.showChapter(targetIndex, false, fragment);
     else if (targetIndex >= 0 || !rawPath) this.scrollToFragment(fragment);
+  }
+
+  private isFootnoteReference(anchor: Element, href: string): boolean {
+    const type = `${anchor.getAttribute("epub:type") ?? ""} ${anchor.getAttribute("role") ?? ""}`.toLowerCase();
+    return Boolean(href.includes("#")) && (/note|doc-noteref/.test(type) || /(?:foot|end)?note/i.test(href));
+  }
+
+  private openFootnote(href: string): boolean {
+    if (!this.book) return false;
+    const current = this.book.chapters[this.chapterIndex];
+    if (!current) return false;
+    const [rawPath, rawFragment = ""] = href.split("#");
+    if (!rawFragment) return false;
+    const targetPath = rawPath ? resolvePath(dirname(current.href), rawPath) : current.href;
+    const chapter = this.book.chapters.find((item) => item.href === targetPath);
+    if (!chapter) return false;
+    let fragment = rawFragment;
+    try { fragment = decodeURIComponent(rawFragment); } catch { /* Use the original identifier. */ }
+    const document = new DOMParser().parseFromString(`<body>${chapter.html}</body>`, "text/html");
+    const target = Array.from(document.querySelectorAll<HTMLElement>("[id], [name]")).find((element) => element.id === fragment || element.getAttribute("name") === fragment);
+    if (!target) return false;
+    target.querySelectorAll('a[href^="#"], a[epub\\:type~="backlink"]').forEach((backlink) => backlink.remove());
+    new FootnoteModal(this.app, "Nota de rodapé", target.innerHTML || target.textContent || "Nota sem conteúdo.").open();
+    return true;
   }
 
   private scrollToFragment(fragment: string): void {

@@ -7,7 +7,16 @@ export function dirname(path: string): string {
 export function resolvePath(baseDir: string, relative: string): string {
   if (!relative) return baseDir;
   const raw = relative.split("#")[0]?.split("?")[0] ?? relative;
-  const parts = `${baseDir}/${decodeURIComponent(raw)}`.split("/");
+  let decoded = raw;
+  try { decoded = decodeURIComponent(raw); }
+  catch {
+    // Malformed EPUBs sometimes contain literal percent signs. Decode only
+    // valid escape sequences so the rest of the book can still be opened.
+    decoded = raw.replace(/%[0-9a-f]{2}/gi, (escape) => {
+      try { return decodeURIComponent(escape); } catch { return escape; }
+    });
+  }
+  const parts = `${baseDir}/${decoded}`.split("/");
   const result: string[] = [];
   for (const part of parts) {
     if (!part || part === ".") continue;

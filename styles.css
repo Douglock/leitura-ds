@@ -343,6 +343,18 @@
 .leitura-ds__chapter img,
 .leitura-ds__chapter svg { max-width: 100%; height: auto; }
 
+.leitura-ds__chapter table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.leitura-ds__footnote { max-height: min(65vh, 620px); overflow: auto; font-size: 1rem; line-height: 1.6; }
+.leitura-ds__footnote > :first-child { margin-top: 0; }
+.leitura-ds__footnote > :last-child { margin-bottom: 0; }
+
 .leitura-ds__chapter p { margin-block: 0 1em; }
 
 .leitura-ds__chapter.is-two-column {

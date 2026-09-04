@@ -33,6 +33,8 @@ O Leitura DS mantém livros, progresso, destaques e comentários no seu próprio
 - Estado compartilhado no Vault: posição e palavra em destaque continuam em outros dispositivos.
 - Âncora textual robusta: a retomada usa texto exato e contexto, resistindo a mudanças de layout e pontuação.
 - Estante instantânea com carregamento inteligente de capas, evitando abrir todos os arquivos grandes de uma vez.
+- Notas de rodapé abrem sobre a leitura, tabelas largas podem ser roladas e imagens recebem carregamento e decodificação progressivos.
+- Modo de recuperação mantém capítulos legíveis disponíveis quando um EPUB contém partes ausentes ou malformadas.
 
 ### Modos de leitura
 

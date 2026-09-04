@@ -65,28 +65,38 @@ export async function parseEpub(buffer: ArrayBuffer, vaultPath: string): Promise
   }
 
   const chapters: BookChapter[] = [];
+  const chapterFailures: string[] = [];
   const spineItems = Array.from(opf.querySelectorAll("spine > itemref"));
   for (let index = 0; index < spineItems.length; index += 1) {
     const id = spineItems[index]?.getAttribute("idref") ?? "";
     const item = manifest.get(id);
     if (!item) continue;
     const fullPath = resolvePath(opfDir, item.href);
-    const source = await requiredText(zip, fullPath);
-    const document = parseXml(source, "application/xhtml+xml");
-    await inlineStyles(zip, document, fullPath, resourceUrls);
-    rewriteResourceAttributes(document, fullPath, resourceUrls);
-    stripUnsafeElements(document);
-    const body = document.querySelector("body");
-    const fallback = document.querySelector("title")?.textContent?.trim() || `Capítulo ${index + 1}`;
-    chapters.push({
-      id,
-      href: fullPath,
-      label: labels.get(stripFragment(item.href)) ?? fallback,
-      html: body?.innerHTML ?? source
-    });
+    try {
+      const source = await requiredText(zip, fullPath);
+      const document = parseXml(source, "application/xhtml+xml");
+      await inlineStyles(zip, document, fullPath, resourceUrls);
+      rewriteResourceAttributes(document, fullPath, resourceUrls);
+      prepareReadableElements(document);
+      stripUnsafeElements(document);
+      const body = document.querySelector("body");
+      const fallback = document.querySelector("title")?.textContent?.trim() || `Capítulo ${index + 1}`;
+      chapters.push({
+        id,
+        href: fullPath,
+        label: labels.get(stripFragment(item.href)) ?? fallback,
+        html: body?.innerHTML ?? source
+      });
+    } catch (error) {
+      chapterFailures.push(`${fullPath}: ${error instanceof Error ? error.message : "erro desconhecido"}`);
+      console.warn("Leitura DS skipped an unreadable EPUB chapter", fullPath, error);
+    }
   }
 
-  if (!chapters.length) throw new Error("EPUB inválido: nenhum capítulo legível foi encontrado.");
+  if (!chapters.length) {
+    const detail = chapterFailures[0] ? ` Primeiro erro: ${chapterFailures[0]}` : "";
+    throw new Error(`EPUB inválido: nenhum capítulo legível foi encontrado.${detail}`);
+  }
   const title = xmlText(opf, "metadata > title") || vaultPath.split("/").pop()?.replace(/\.epub$/i, "") || "Livro";
   const author = xmlText(opf, "metadata > creator") || "Autor desconhecido";
   const explicitCoverId = opf.querySelector('metadata meta[name="cover"]')?.getAttribute("content") ?? "";
@@ -94,7 +104,10 @@ export async function parseEpub(buffer: ArrayBuffer, vaultPath: string): Promise
     item.properties.split(/\s+/).includes("cover-image") || item.id === explicitCoverId || /(^|[-_])cover([-_.]|$)/i.test(item.id)
   );
   const coverUrl = coverItem ? resourceUrls.get(resolvePath(opfDir, coverItem.href)) : undefined;
-  return { id: stableBookId(vaultPath, title), path: vaultPath, title, author, coverUrl, chapters, resources };
+  return {
+    id: stableBookId(vaultPath, title), path: vaultPath, title, author, coverUrl, chapters, resources,
+    warnings: chapterFailures.length ? [`${chapterFailures.length} ${chapterFailures.length === 1 ? "capítulo foi ignorado" : "capítulos foram ignorados"} porque não puderam ser lidos.`] : undefined
+  };
 }
 
 /** Lightweight EPUB pass used by the library: no chapter HTML, fonts or images are loaded. */
@@ -254,6 +267,19 @@ function stripUnsafeElements(document: Document): void {
     for (const attribute of Array.from(element.attributes)) {
       if (attribute.name.toLowerCase().startsWith("on")) element.removeAttribute(attribute.name);
     }
+  });
+}
+
+function prepareReadableElements(document: Document): void {
+  document.querySelectorAll("img").forEach((image) => {
+    image.setAttribute("loading", "lazy");
+    image.setAttribute("decoding", "async");
+    if (!image.getAttribute("alt")) image.setAttribute("alt", "Ilustração do livro");
+  });
+  document.querySelectorAll("table").forEach((table) => {
+    table.setAttribute("tabindex", "0");
+    table.setAttribute("role", "region");
+    if (!table.getAttribute("aria-label")) table.setAttribute("aria-label", "Tabela do livro; deslize horizontalmente para ver todo o conteúdo");
   });
 }
 
