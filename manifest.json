@@ -1,7 +1,7 @@
 {
   "id": "leitura-ds",
   "name": "Leitura DS",
-  "version": "0.34.0",
+  "version": "0.34.1",
   "minAppVersion": "1.8.7",
   "description": "Leitor local-first de EPUBs e quadrinhos, com destaques, notas e leitura rápida.",
   "author": "Douglas Santana",

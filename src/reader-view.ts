@@ -75,7 +75,7 @@ export class LeituraDSView extends ItemView {
   private socialModeSelect!: HTMLSelectElement;
   private socialOverlay!: HTMLElement;
   private socialIndex = 0;
-  private socialChunks: Array<{ text: string; startWord: number }> = [];
+  private socialChunks: Array<{ text: string; startWord: number; endWord: number }> = [];
   private socialPointerStart: number | null = null;
   private socialMove: ((delta: number) => void) | null = null;
 
@@ -645,7 +645,10 @@ export class LeituraDSView extends ItemView {
     const renderStep = (): void => {
       const chunk = this.socialChunks[this.socialIndex];
       if (!chunk) return;
-      this.fastWordIndex = chunk.startWord;
+      // The current card is the portion the reader is looking at. Save its
+      // last word so leaving a social mode resumes at the visible boundary,
+      // instead of jumping back to the card's first word.
+      this.fastWordIndex = Math.max(chunk.startWord, chunk.endWord - 1);
       progress.textContent = `${this.socialIndex + 1} / ${this.socialChunks.length}`;
       const percent = ((this.socialIndex + 1) / this.socialChunks.length) * 100;
       progressFill.style.width = `${percent}%`;
@@ -683,12 +686,12 @@ export class LeituraDSView extends ItemView {
     renderStep();
   }
 
-  private createSocialChunks(article: HTMLElement, maximumCharacters: number): Array<{ text: string; startWord: number }> {
+  private createSocialChunks(article: HTMLElement, maximumCharacters: number): Array<{ text: string; startWord: number; endWord: number }> {
     const paragraphs = Array.from(article.querySelectorAll<HTMLElement>("p, li, blockquote, h1, h2, h3"))
       .filter((element) => !(element.matches("li, blockquote") && element.querySelector("p")))
       .map((element) => element.innerText.replace(/\s+/g, " ").trim()).filter(Boolean);
     const source = paragraphs.length ? paragraphs : [this.getReadableArticleText(article).replace(/\s+/g, " ").trim()];
-    const chunks: Array<{ text: string; startWord: number }> = [];
+    const chunks: Array<{ text: string; startWord: number; endWord: number }> = [];
     let wordsBefore = 0;
     source.forEach((paragraph) => {
       const words = paragraph.match(/\S+/g) ?? [];
@@ -697,7 +700,7 @@ export class LeituraDSView extends ItemView {
       let partLength = 0;
       const flush = (): void => {
         if (!part.length) return;
-        chunks.push({ text: part.join(" "), startWord: partStart });
+        chunks.push({ text: part.join(" "), startWord: partStart, endWord: partStart + part.length });
         partStart += part.length;
         part = [];
         partLength = 0;
