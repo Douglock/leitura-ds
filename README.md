@@ -30,6 +30,7 @@ O Leitura DS mantém livros, progresso, destaques e comentários no seu próprio
 - Biblioteca visual com capas, busca e página de todos os destaques.
 - Temas, fontes, espaçamento, largura do texto, duas colunas e tela cheia.
 - Estado compartilhado no Vault: posição e palavra em destaque continuam em outros dispositivos.
+- Âncora textual robusta: a retomada usa texto exato e contexto, resistindo a mudanças de layout e pontuação.
 - Estante instantânea com carregamento inteligente de capas, evitando abrir todos os arquivos grandes de uma vez.
 
 ### Modos de leitura

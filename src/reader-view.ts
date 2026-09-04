@@ -7,6 +7,7 @@ import { MarkersModal } from "./markers-modal";
 import { FastReader, optimalRecognitionPoint } from "./fast-reading";
 import { parseEpub } from "./epub-parser";
 import { dirname, resolvePath } from "./path-utils";
+import { createTextAnchor, resolveTextAnchor } from "./reading-anchor";
 import type { BookAnnotation, BookMarker, ParsedBook, ReaderAppearance, ReaderFont, ReaderTheme, ReadingPosition, SocialReadingMode } from "./types";
 
 export const LEITURA_DS_VIEW = "leitura-ds-view";
@@ -748,25 +749,8 @@ export class LeituraDSView extends ItemView {
   }
 
   private resolveSavedWordIndex(article: HTMLElement, saved: ReadingPosition, fallback: number): number {
-    if (!saved.word) return fallback;
     const words = this.getReadableWords(article);
-    const target = saved.word.toLocaleLowerCase("pt-BR");
-    let bestIndex = -1;
-    let bestScore = -1;
-    words.forEach((word, index) => {
-      if (word.toLocaleLowerCase("pt-BR") !== target) return;
-      let score = 0;
-      (saved.contextBefore ?? []).forEach((context, offset) => {
-        const candidate = words[index - (saved.contextBefore!.length - offset)];
-        if (candidate?.toLocaleLowerCase("pt-BR") === context.toLocaleLowerCase("pt-BR")) score += 2;
-      });
-      (saved.contextAfter ?? []).forEach((context, offset) => {
-        if (words[index + offset + 1]?.toLocaleLowerCase("pt-BR") === context.toLocaleLowerCase("pt-BR")) score += 2;
-      });
-      score -= Math.min(2, Math.abs(index - fallback) / 1000);
-      if (score > bestScore) { bestScore = score; bestIndex = index; }
-    });
-    return bestIndex >= 0 ? bestIndex : fallback;
+    return resolveTextAnchor(words, saved, fallback);
   }
 
   private getReadableTextNodes(article: HTMLElement): Text[] {
@@ -1101,11 +1085,15 @@ export class LeituraDSView extends ItemView {
     const article = this.readerHost.querySelector<HTMLElement>(".leitura-ds__chapter");
     const words = article ? this.getReadableWords(article) : [];
     const safeWordIndex = Math.max(0, Math.min(this.fastWordIndex, Math.max(0, words.length - 1)));
+    const anchor = createTextAnchor(words, safeWordIndex);
     await this.plugin.setPosition(this.book.id, {
       chapterIndex: this.chapterIndex,
       progress,
       fastWordIndex: safeWordIndex,
       word: words[safeWordIndex],
+      exactText: anchor?.exactText,
+      prefix: anchor?.prefix,
+      suffix: anchor?.suffix,
       contextBefore: words.slice(Math.max(0, safeWordIndex - 3), safeWordIndex),
       contextAfter: words.slice(safeWordIndex + 1, safeWordIndex + 4),
       scrollTop: this.readerHost.scrollTop,

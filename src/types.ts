@@ -47,6 +47,9 @@ export interface ReadingPosition {
   progress: number;
   fastWordIndex?: number;
   word?: string;
+  exactText?: string;
+  prefix?: string;
+  suffix?: string;
   contextBefore?: string[];
   contextAfter?: string[];
   scrollTop?: number;
